@@ -1,0 +1,128 @@
+# coding=utf-8
+
+import numpy as np
+import random
+import cv2
+from shapely.geometry import Polygon
+import pyclipper
+import os
+
+def random_crop(imgs, img_size):
+    """
+
+    :param imgs: 包含img和kernel
+    :param img_size:
+    :return:
+    """
+    h, w = imgs[0].shape[0:2]
+    th, tw = img_size
+    if w == tw and h == th:
+        return imgs
+
+    if random.random() > 3.0 / 8.0 and np.max(imgs[1]) > 0:
+        tl = np.min(np.where(imgs[1] > 0), axis=1) - img_size
+        tl[tl < 0] = 0
+        br = np.max(np.where(imgs[1] > 0), axis=1) - img_size
+        br[br < 0] = 0
+        br[0] = min(br[0], h - th)
+        br[1] = min(br[1], w - tw)
+
+        i = random.randint(tl[0], br[0])
+        j = random.randint(tl[1], br[1])
+    else:
+        i = random.randint(0, h - th)
+        j = random.randint(0, w - tw)
+
+    # return i, j, th, tw
+    for idx in range(len(imgs)):
+        if len(imgs[idx].shape) == 3:
+            imgs[idx] = imgs[idx][i:i + th, j:j + tw, :]
+        else:
+            imgs[idx] = imgs[idx][i:i + th, j:j + tw]
+    return imgs
+
+
+def random_rotate(imgs):
+    angle = np.random.uniform(-10, 10)
+    cols = imgs[0].shape[1]
+    rows = imgs[0].shape[0]
+
+    M = cv2.getRotationMatrix2D((cols / 2, rows / 2), angle, 1)
+    for idx in range(len(imgs)):
+        imgs[idx] = cv2.warpAffine(imgs[idx], M, (cols, rows))
+
+    return imgs
+
+
+def random_scale(imgs, scales=[0.5, 1.0, 2.0, 3.0]):
+    rd_scale = np.random.choice(scales)
+    for idx in range(len(imgs)):
+        imgs[idx] = cv2.resize(imgs[idx], dsize=None, fx=rd_scale, fy=rd_scale)
+    return imgs
+
+def poly_offset(img, poly, dis):
+    subj_poly = np.array(poly)
+     # Polygon(subj_poly).area, Polygon(subj_poly).length
+    pco = pyclipper.PyclipperOffset()
+    pco.AddPath(subj_poly, pyclipper.JT_ROUND, pyclipper.ET_CLOSEDPOLYGON)
+    solution = pco.Execute(-1.0 * dis)
+    ss = np.array(solution)
+    cv2.fillPoly(img, ss.astype(np.int32), 1)
+    return img
+
+def cal_offset(poly, r):
+    area, length = Polygon(poly).area, Polygon(poly).length
+    d = area * (1 - r**2) / length
+    return d
+
+def shrink_polys(img, polys, mini_scale_ratio, num_kernels=6):
+    h, w = img.shape[:2]
+    f = lambda x: 1. - (1. - mini_scale_ratio)*(num_kernels - x - 1)/(num_kernels - 1.)
+    r = [f(i) for i in range(num_kernels)]
+
+    score_maps = []
+    for poly in polys:
+        poly = np.array(poly, dtype=np.float32).reshape((-1, 2))
+
+        for i, val in enumerate(r):
+            score_map = np.zeros((h, w), dtype=np.float32)
+            d = cal_offset(poly, val)
+            tmp_score = poly_offset(score_map, poly, d)
+            score_maps.append(tmp_score)
+    return score_maps
+
+def parse_lines(filename):
+    with open(filename, 'r') as f:
+        lines = f.readlines()
+
+    text_polys = []
+    text_tags = []
+    if not os.path.exists(filename):
+        return np.array(text_polys, dtype=np.float32)
+    for line in lines:
+        label = line[-1]
+        # strip BOM. \ufeff for python3,  \xef\xbb\bf for python2
+        line = [i.strip('\ufeff').strip('\xef\xbb\xbf') for i in line]
+        if 10 > len(line) > 7:
+            x1, y1, x2, y2, x3, y3, x4, y4 = list(map(float, line[:8]))
+            text_polys.append([[x1, y1], [x2, y2], [x3, y3], [x4, y4]])
+        elif 7 > len(line) > 3:
+            x0, y0, x1, y1 = list(map(float, line[:4]))
+            text_polys.append([[x0, y0], [x1, y0], [x1, y1], [x0, y1]])
+        elif len(line) > 10:
+            pts = list(map(float, line[:-1]))
+            pts = list(np.array(pts).reshape((-1, 2)))
+            text_polys.append(pts)
+
+        else:
+            continue
+        if label == '*' or label == '###':
+            text_tags.append(True)
+        else:
+            text_tags.append(False)
+    return np.array(text_polys, dtype=np.float32), np.array(text_tags, dtype=np.bool)
+
+
+
+
+
