@@ -54,10 +54,11 @@ def random_rotate(imgs):
     return imgs
 
 
-def random_scale(imgs, scales=[0.5, 1.0, 2.0, 3.0]):
+def random_scale(imgs, scales=[0.5, 1.0, 2.0]):
     rd_scale = np.random.choice(scales)
     for idx in range(len(imgs)):
         imgs[idx] = cv2.resize(imgs[idx], dsize=None, fx=rd_scale, fy=rd_scale)
+        imgs[idx], _ = rescale(imgs[idx], text_polys=None)
     return imgs
 
 def poly_offset(img, poly, dis):
@@ -75,21 +76,24 @@ def cal_offset(poly, r):
     d = area * (1 - r**2) / length
     return d
 
-def shrink_polys(img, polys, mini_scale_ratio, num_kernels=6):
+def shrink_polys(img, polys, tags, mini_scale_ratio, num_kernels=6):
     h, w = img.shape[:2]
     f = lambda x: 1. - (1. - mini_scale_ratio)*(num_kernels - x - 1)/(num_kernels - 1.)
     r = [f(i) for i in range(num_kernels)]
+    training_mask = np.ones((h, w), dtype=np.float32)
+    score_maps = np.zeros((h, w, num_kernels), dtype=np.uint8)
 
-    score_maps = []
-    for poly in polys:
-        poly = np.array(poly, dtype=np.float32).reshape((-1, 2))
-
-        for i, val in enumerate(r):
-            score_map = np.zeros((h, w), dtype=np.float32)
+    # TODO: debug cal_offset
+    for i, val in enumerate(r):
+        tmp_score_map = np.zeros((h, w), dtype=np.float32)
+        for poly, tag in zip(polys, tags):
+            poly = np.array(poly, dtype=np.float32).reshape((-1, 2))
+            if tag:
+                cv2.fillPoly(training_mask, poly.astype(np.int32)[np.newaxis, :, :], 0)
             d = cal_offset(poly, val)
-            tmp_score = poly_offset(score_map, poly, d)
-            score_maps.append(tmp_score)
-    return score_maps
+            tmp_score_map = poly_offset(tmp_score_map, poly, d)
+        score_maps[:, :, i] = tmp_score_map
+    return [score_maps[:, :, i] for i in xrange(num_kernels)], training_mask
 
 def parse_lines(filename):
     with open(filename, 'r') as f:
@@ -100,9 +104,10 @@ def parse_lines(filename):
     if not os.path.exists(filename):
         return np.array(text_polys, dtype=np.float32)
     for line in lines:
+        line = line.strip('\n').split(',')
         label = line[-1]
         # strip BOM. \ufeff for python3,  \xef\xbb\bf for python2
-        line = [i.strip('\ufeff').strip('\xef\xbb\xbf') for i in line]
+        # line = [i.strip('\ufeff').strip('\xef\xbb\xbf') for i in line]
         if 10 > len(line) > 7:
             x1, y1, x2, y2, x3, y3, x4, y4 = list(map(float, line[:8]))
             text_polys.append([[x1, y1], [x2, y2], [x3, y3], [x4, y4]])
@@ -110,6 +115,7 @@ def parse_lines(filename):
             x0, y0, x1, y1 = list(map(float, line[:4]))
             text_polys.append([[x0, y0], [x1, y0], [x1, y1], [x0, y1]])
         elif len(line) > 10:
+
             pts = list(map(float, line[:-1]))
             pts = list(np.array(pts).reshape((-1, 2)))
             text_polys.append(pts)
@@ -123,6 +129,22 @@ def parse_lines(filename):
     return np.array(text_polys, dtype=np.float32), np.array(text_tags, dtype=np.bool)
 
 
+def rescale(img, text_polys, min_side=640):
+    h, w = img.shape[:2]
+    scale = 1.0
+    if min(h, w) < min_side:
+        if h <= w:
+            scale = 1.0*min_side / h
+        else:
+            scale = 1.0 * min_side / w
+    img = cv2.resize(img, dsize=None, fx=scale, fy=scale)
+    if text_polys is not None:
+        text_polys *= scale
+        text_polys = np.array(text_polys)
+    return img, text_polys
 
+def save_images(imgs):
+    for i, item in enumerate(imgs):
+        cv2.imwrite('img_{}.png'.format(i), item*255)
 
 
