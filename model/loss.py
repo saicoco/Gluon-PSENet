@@ -1,23 +1,46 @@
 # coding=utf-8
 from mxnet import gluon
+from mxnet import nd as F
 
 class DiceLoss(gluon.loss.Loss):
 
-    def __init__(self, cls_weight=0.01, iou_weight=1.0, angle_weight=20, weight=None, batch_axis=0, **kwargs):
+    def __init__(self, lam=0.7, weight=None, batch_axis=0, **kwargs):
         super(DiceLoss, self).__init__(weight=weight, batch_axis=batch_axis, **kwargs)
-        self.cls_weight = cls_weight
-        self.iou_weight = iou_weight
-        self.angle_weight = angle_weight
+        self.lam = lam
 
-    def hybrid_forward(self, F, score_gt, score_pred, training_masks, *args, **kwargs):
+    def hybrid_forward(self, FF, score_gt, score_pred, training_masks, *args, **kwargs):
+
+        s1, s2, s3, s4, s5, C = F.split(score_gt, num_outputs=6, axis=1)
+        s1_pred, s2_pred, s3_pred, s4_pred, s5_pred, C_pred = F.split(score_pred, num_outputs=6, axis=1)
+
+        all_pos_samples = F.sum(score_gt)
+        all_neg_samples = F.sum(F.ones_like(score_gt) - score_gt)
+        all_samples = all_neg_samples + all_pos_samples
+        all_neg_samples = 3 * all_pos_samples if 3 * all_pos_samples < all_samples else all_neg_samples
+
+        # get negative sample and positive for C map
+        negative_sig_out = (F.ones_like(C) - C) * training_masks * C_pred
+        C_topk_mask = F.topk(negative_sig_out.reshape((negative_sig_out.shape[0], -1)), ret_typ='mask', k=all_neg_samples).reshape(negative_sig_out.shape)
 
         # classification loss
         eps = 1e-5
-        intersection = F.sum(score_gt * score_pred * training_masks)
-        union = F.sum(training_masks * score_gt) + F.sum(training_masks * score_pred) + eps
-        dice_loss = 1. - (2 * intersection / union)
+        intersection = F.sum(score_gt * score_pred * training_masks * C_topk_mask)
+        union = F.sum(training_masks * score_gt * C_topk_mask) + F.sum(training_masks * score_pred * C_topk_mask) + eps
+        C_dice_loss = 1. - (2 * intersection / union)
 
-        # TODO: 完成OHEM
 
-        return dice_loss
+        # loss for kernel
+        kernel_dices = []
+        for s, s_pred in zip([s1, s2, s3, s4, s5], [s1_pred, s2_pred, s3_pred, s4_pred, s5_pred]):
+            kernel_mask = F.where(s > 0.5, F.ones_like(s), F.zeros_like(s))
+            kernel_intersection = F.sum(s * s_pred * training_masks * kernel_mask)
+            kernel_union = F.sum(training_masks * s * kernel_mask) + F.sum(
+                training_masks * s_pred * kernel_mask) + eps
+            kernel_dice = 2. * kernel_intersection / kernel_union
+            kernel_dices.append(kernel_dice)
+        kernel_dice_loss =1. - F.mean(kernel_dices)
+
+        loss = self.lam * C_dice_loss + (1. - self.lam) * kernel_dice_loss
+        
+        return loss
 

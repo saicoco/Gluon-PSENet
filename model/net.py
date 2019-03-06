@@ -2,7 +2,6 @@
 from mxnet.gluon import HybridBlock, nn
 import mxnet as mx
 from gluoncv import model_zoo
-from mxnet import nd as F
 
 class PSENet(HybridBlock):
 
@@ -62,7 +61,7 @@ class PSENet(HybridBlock):
         with self.decoder_out.name_scope():
             self.conv1_out = nn.Conv2D(channels=self.num_kernels, kernel_size=(1, 1), activation='sigmoid')
             self.decoder_out.add(self.conv1_out)
-    def hybrid_forward(self, FF, x, *args, **kwargs):
+    def hybrid_forward(self, F, x, *args, **kwargs):
         # forward
         N, C, H, W =  x.shape
         conv1 = self.CONV1(x) # stride = 4

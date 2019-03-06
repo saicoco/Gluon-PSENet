@@ -30,8 +30,7 @@ class ICDAR(Dataset):
         imgs = random_scale(imgs)
         imgs = random_crop(imgs, self.input_size)
         image, score_map, train_mask = imgs[0], imgs[1:-1], imgs[-1]
-        save_images(imgs)
-        return image
+        return mx.nd.array(image), mx.nd.array(score_map), mx.nd.array(train_mask)
 
     def __len__(self):
         return self.length
