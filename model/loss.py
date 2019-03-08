@@ -8,19 +8,19 @@ class DiceLoss(gluon.loss.Loss):
         super(DiceLoss, self).__init__(weight=weight, batch_axis=batch_axis, **kwargs)
         self.lam = lam
 
-    def hybrid_forward(self, FF, score_gt, score_pred, training_masks, *args, **kwargs):
+    def hybrid_forward(self, F, score_gt, score_pred, training_masks, *args, **kwargs):
 
         s1, s2, s3, s4, s5, C = F.split(score_gt, num_outputs=6, axis=1)
         s1_pred, s2_pred, s3_pred, s4_pred, s5_pred, C_pred = F.split(score_pred, num_outputs=6, axis=1)
 
-        all_pos_samples = F.sum(score_gt)
-        all_neg_samples = F.sum(F.ones_like(score_gt) - score_gt)
+        all_pos_samples = F.sum(C)
+        all_neg_samples = F.sum(F.ones_like(C) - C)
         all_samples = all_neg_samples + all_pos_samples
-        all_neg_samples = 3 * all_pos_samples if 3 * all_pos_samples < all_samples else all_neg_samples
+        all_neg_samples = 3 * all_pos_samples if (3 * all_pos_samples) < all_samples else all_neg_samples
 
         # get negative sample and positive for C map
-        negative_sig_out = (F.ones_like(C) - C) * training_masks * C_pred
-        C_topk_mask = F.topk(negative_sig_out.reshape((negative_sig_out.shape[0], -1)), ret_typ='mask', k=all_neg_samples).reshape(negative_sig_out.shape)
+        negative_sig_out = (F.ones_like(C) - C) * C_pred * training_masks
+        C_topk_mask = F.topk(negative_sig_out.reshape((negative_sig_out.shape[0], -1)), ret_typ='mask', k=int(all_neg_samples.asscalar())).reshape(negative_sig_out.shape)
 
         # classification loss
         eps = 1e-5
@@ -37,10 +37,19 @@ class DiceLoss(gluon.loss.Loss):
             kernel_union = F.sum(training_masks * s * kernel_mask) + F.sum(
                 training_masks * s_pred * kernel_mask) + eps
             kernel_dice = 2. * kernel_intersection / kernel_union
-            kernel_dices.append(kernel_dice)
-        kernel_dice_loss =1. - F.mean(kernel_dices)
+            kernel_dices.append(kernel_dice.asscalar())
+        kernel_dice_loss =1. - F.mean(F.array(kernel_dices))
 
         loss = self.lam * C_dice_loss + (1. - self.lam) * kernel_dice_loss
         
         return loss
 
+
+if __name__ == '__main__':
+    import numpy as np
+    loss = DiceLoss()
+    x = F.array(np.random.randint(0, 2, size=(1, 6, 128, 128)))
+
+    x_pred = F.array(np.random.normal(size=(1, 6, 128, 128)))
+    mask = F.ones(shape=(1, 1, 128, 128))
+    print loss.forward(x, x_pred, mask)
