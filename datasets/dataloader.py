@@ -6,14 +6,16 @@ import os
 import glob
 import cv2
 import mxnet as mx
+import numpy as np
 
 class ICDAR(Dataset):
-    def __init__(self, data_dir, input_size=(640, 640)):
+    def __init__(self, data_dir, strides=4, input_size=(640, 640)):
         super(ICDAR, self).__init__()
         self.data_dir = data_dir
         self.imglst = glob.glob1(self.data_dir, '*g')
         self.length = len(self.imglst)
         self.input_size = input_size
+        self.strides = strides
 
     def __getitem__(self, item):
         img_name = self.imglst[item]
@@ -29,8 +31,11 @@ class ICDAR(Dataset):
         imgs = random_rotate(imgs)
         imgs = random_scale(imgs)
         imgs = random_crop(imgs, self.input_size)
-        image, score_map, train_mask = imgs[0], imgs[1:-1], imgs[-1]
-        return mx.nd.array(image), mx.nd.array(score_map), mx.nd.array(train_mask)
+
+        image, score_map, train_mask = imgs[0], imgs[1:-1], imgs[-2:-1]
+        image, score_map, train_mask = mx.nd.array(image), mx.nd.array(score_map), mx.nd.array(train_mask)
+
+        return mx.nd.Concat(image, score_map.transpose((1, 2, 0)), train_mask.transpose((1, 2, 0)), dim=-1)
 
     def __len__(self):
         return self.length
@@ -40,9 +45,10 @@ if __name__ == '__main__':
     import sys
     root_dir = sys.argv[1]
     icdar = ICDAR(data_dir=root_dir)
-    loader = dataloader.DataLoader(dataset=icdar, batch_size=2)
+    loader = dataloader.DataLoader(dataset=icdar, batch_size=10)
     for k, i in enumerate(loader):
-        print i
+        img = i[:, :, :, :3]
+        print img.shape
         if k==3:
             break
 

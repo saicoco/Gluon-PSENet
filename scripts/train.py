@@ -21,11 +21,12 @@ def train(data_dir, pretrain_model, epoches=30, lr=0.001, batch_size=10, ctx=mx.
 
     for e in range(epoches):
         cumulative_loss = 0
-        
-        for i, (im, kernels, training_masks) in enumerate(loader):
-            im = im.as_in_context(ctx)
-            kernels = kernels.as_in_context(ctx)
-            training_masks = training_masks.as_in_context(ctx)
+
+        for i, data in enumerate(loader):
+            data = data.as_in_context(ctx).transpose((0, 3, 1, 2))
+            im = data[:, :3, :, :]
+            kernels = data[:, 3:9, ::4, ::4]
+            training_masks = data[:, 9:, ::4, ::4]
 
             with autograd.record():
                 kernels_pred = net(im)

@@ -17,7 +17,7 @@ class DiceLoss(gluon.loss.Loss):
         all_neg_samples = F.sum(F.ones_like(C) - C)
         all_samples = all_neg_samples + all_pos_samples
         all_neg_samples = 3 * all_pos_samples if (3 * all_pos_samples) < all_samples else all_neg_samples
-
+        # TODO: 完成loss部分的计算和校验
         # get negative sample and positive for C map
         negative_sig_out = (F.ones_like(C) - C) * C_pred * training_masks
         C_topk_mask = F.topk(negative_sig_out.reshape((negative_sig_out.shape[0], -1)), ret_typ='mask', k=int(all_neg_samples.asscalar())).reshape(negative_sig_out.shape)
