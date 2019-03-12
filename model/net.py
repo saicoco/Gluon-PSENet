@@ -5,7 +5,7 @@ from gluoncv import model_zoo
 
 class PSENet(HybridBlock):
 
-    def __init__(self, num_kernels, channels=None, ctx=mx.cpu(), pretrained=True):
+    def __init__(self, num_kernels, ctx=mx.cpu(), pretrained=True):
         super(PSENet, self).__init__()
         self.num_kernels = num_kernels
 
@@ -96,7 +96,7 @@ class PSENet(HybridBlock):
 
 if __name__ == '__main__':
     import numpy as np
-    fpn = PSENet(num_kernels=6, pretrained=False)
+    fpn = PSENet(num_kernels=6, pretrained=True)
     fpn.initialize(ctx=mx.cpu())
     x = mx.nd.array([np.random.normal(size=(3, 512, 512))])
 
