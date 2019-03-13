@@ -8,7 +8,7 @@ from mxnet.gluon import Trainer
 from model.loss import DiceLoss
 from mxnet import autograd
 
-def train(data_dir, pretrain_model, epoches=30, lr=0.001, batch_size=10, ctx=mx.cpu(), verbose_step=10):
+def train(data_dir, pretrain_model, epoches=30, lr=0.001, batch_size=10, ctx=mx.cpu(), verbose_step=1):
 
     icdar_loader = ICDAR(data_dir=data_dir)
     loader = DataLoader(icdar_loader, batch_size=batch_size, shuffle=True)

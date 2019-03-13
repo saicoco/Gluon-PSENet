@@ -16,11 +16,12 @@ class DiceLoss(gluon.loss.Loss):
         all_pos_samples = F.sum(C)
         all_neg_samples = F.sum(F.ones_like(C) - C)
         all_samples = all_neg_samples + all_pos_samples
-        all_neg_samples = 3 * all_pos_samples if (3 * all_pos_samples) < all_samples else all_neg_samples
-        # TODO: 完成loss部分的计算和校验
+        all_neg_samples = 3 * all_pos_samples if (3 * all_pos_samples) < all_neg_samples else all_neg_samples
+
         # get negative sample and positive for C map
         negative_sig_out = (F.ones_like(C) - C) * C_pred * training_masks
-        C_topk_mask = F.topk(negative_sig_out.reshape((negative_sig_out.shape[0], -1)), ret_typ='mask', k=int(all_neg_samples.asscalar())).reshape(negative_sig_out.shape)
+
+        C_topk_mask = F.topk(negative_sig_out.reshape((1, -1)), ret_typ='mask', k=int(all_neg_samples.asscalar())).reshape(negative_sig_out.shape)
 
         # classification loss
         eps = 1e-5
@@ -48,8 +49,9 @@ class DiceLoss(gluon.loss.Loss):
 if __name__ == '__main__':
     import numpy as np
     loss = DiceLoss()
-    x = F.array(np.random.randint(0, 2, size=(1, 6, 128, 128)))
+    for i in range(100):
+        x = F.array(np.random.randint(0, 2, size=(1, 6, 128, 128)))
 
-    x_pred = F.array(np.random.normal(size=(1, 6, 128, 128)))
-    mask = F.ones(shape=(1, 1, 128, 128))
-    print loss.forward(x, x_pred, mask)
+        x_pred = F.array(np.random.normal(size=(1, 6, 128, 128)))
+        mask = F.ones(shape=(1, 1, 128, 128))
+        print loss.forward(x, x_pred, mask)
