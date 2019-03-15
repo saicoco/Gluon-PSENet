@@ -5,8 +5,10 @@ from util import random_crop, random_rotate, random_scale, shrink_polys, parse_l
 import os
 import glob
 import cv2
+from PIL import Image
 import mxnet as mx
 import numpy as np
+from mxnet.gluon.data.vision import transforms
 
 class ICDAR(Dataset):
     def __init__(self, data_dir, strides=4, input_size=(640, 640)):
@@ -16,13 +18,20 @@ class ICDAR(Dataset):
         self.length = len(self.imglst)
         self.input_size = input_size
         self.strides = strides
+        self.trans = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize([.485, .456, .406], [.229, .224, .225]),
+        ])
+
 
     def __getitem__(self, item):
         img_name = self.imglst[item]
         prefix = ".".join(img_name.split('.')[:-1])
         label_name = prefix + '.txt'
         text_polys, text_tags = parse_lines(os.path.join(self.data_dir, label_name))
-        im = cv2.imread(os.path.join(self.data_dir, img_name))
+        # im = cv2.imread(os.path.join(self.data_dir, img_name))
+        im = Image.open(os.path.join(self.data_dir, img_name))
+        im = np.array(im)[:, :, :3]
         im, text_polys = rescale(im, text_polys)
         score_maps, training_mask = shrink_polys(im, polys=text_polys, tags=text_tags, mini_scale_ratio=0.5, num_kernels=6)
         imgs = [im] + score_maps + [training_mask]
@@ -34,7 +43,8 @@ class ICDAR(Dataset):
 
         image, score_map, train_mask = imgs[0], imgs[1:-1], imgs[-2:-1]
         image, score_map, train_mask = mx.nd.array(image), mx.nd.array(score_map), mx.nd.array(train_mask)
-
+        # image = self.trans(image)
+        image = self.trans(image).transpose((1, 2, 0))
         return mx.nd.Concat(image, score_map.transpose((1, 2, 0)), train_mask.transpose((1, 2, 0)), dim=-1)
 
     def __len__(self):
@@ -47,9 +57,14 @@ if __name__ == '__main__':
     icdar = ICDAR(data_dir=root_dir)
     loader = dataloader.DataLoader(dataset=icdar, batch_size=10)
     for k, i in enumerate(loader):
-        img = i[:, :, :, :3]
+        img = i[0, :, :, :3].asnumpy()
+        kernels = i[0, :, :, 3:6].asnumpy()
+        cv2.imshow("img", np.concatenate([img.astype(np.uint8), kernels.astype(np.uint8)*255], axis=1))
+        cv2.waitKey()
+
         print img.shape
-        if k==3:
+        if k==10:
+            cv2.destroyAllWindows()
             break
 
 
