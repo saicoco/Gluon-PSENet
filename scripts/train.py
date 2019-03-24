@@ -9,16 +9,16 @@ from model.loss import DiceLoss
 from mxnet import autograd
 import mxboard as mb
 
-def train(data_dir, pretrain_model, epoches=30, lr=0.001, batch_size=10, ctx=mx.cpu(), verbose_step=1, ckpt='ckpt'):
+def train(data_dir, pretrain_model, epoches=30, lr=0.01, batch_size=10, ctx=mx.cpu(), verbose_step=1, ckpt='ckpt'):
 
     icdar_loader = ICDAR(data_dir=data_dir)
     loader = DataLoader(icdar_loader, batch_size=batch_size, shuffle=True)
     net = PSENet(num_kernels=6, ctx=ctx)
     # initial params
-    net.collect_params().initialize(mx.init.Normal(sigma=1.), ctx=ctx)
+    net.collect_params().initialize(mx.init.Normal(sigma=0.01), ctx=ctx)
     # net.load_parameters(pretrain_model, ctx=ctx, allow_missing=True, ignore_extra=True)
     pse_loss = DiceLoss(lam=0.7)
-    trainer = Trainer(net.collect_params(), 'sgd', {'learning_rate': lr})
+    trainer = Trainer(net.collect_params(), 'adam', {'learning_rate': lr})
     summary_writer = mb.SummaryWriter(ckpt)
     for e in range(epoches):
         cumulative_loss = 0
@@ -38,6 +38,9 @@ def train(data_dir, pretrain_model, epoches=30, lr=0.001, batch_size=10, ctx=mx.
             if i%verbose_step==0:
                 summary_writer.add_image('score_map', kernels[0:1, 0:1, :, :], i*batch_size)
                 summary_writer.add_image('score_map_pred', kernels_pred[0:1, 0:1, :, :], i*batch_size)
+                summary_writer.add_scalar('loss', mx.nd.mean(loss).asscalar())
+                summary_writer.add_scalar('c_loss', pse_loss.C_loss)
+                summary_writer.add_scalar('kernel_loss', pse_loss.kernel_loss)
 
                 print("step: {}, loss: {}".format(i * batch_size, mx.nd.mean(loss).asscalar()))
             cumulative_loss += mx.nd.mean(loss).asscalar()
