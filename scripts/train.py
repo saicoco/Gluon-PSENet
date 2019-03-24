@@ -38,9 +38,9 @@ def train(data_dir, pretrain_model, epoches=30, lr=0.01, batch_size=10, ctx=mx.c
             if i%verbose_step==0:
                 summary_writer.add_image('score_map', kernels[0:1, 0:1, :, :], i*batch_size)
                 summary_writer.add_image('score_map_pred', kernels_pred[0:1, 0:1, :, :], i*batch_size)
-                summary_writer.add_scalar('loss', mx.nd.mean(loss).asscalar())
-                summary_writer.add_scalar('c_loss', pse_loss.C_loss)
-                summary_writer.add_scalar('kernel_loss', pse_loss.kernel_loss)
+                summary_writer.add_scalar('loss', mx.nd.mean(loss).asscalar(), i*batch_size)
+                summary_writer.add_scalar('c_loss', mx.nd.mean(pse_loss.C_loss).asscalar(), i*batch_size)
+                summary_writer.add_scalar('kernel_loss', mx.nd.mean(pse_loss.kernel_loss).asscalar(), i*batch_size)
 
                 print("step: {}, loss: {}".format(i * batch_size, mx.nd.mean(loss).asscalar()))
             cumulative_loss += mx.nd.mean(loss).asscalar()

@@ -52,6 +52,8 @@ class DiceLoss(gluon.loss.Loss):
     def __init__(self, lam=0.7, weight=None, batch_axis=0, **kwargs):
         super(DiceLoss, self).__init__(weight=weight, batch_axis=batch_axis, **kwargs)
         self.lam = lam
+        self.kernel_loss = 0.
+        self.C_loss = 0.
 
     def hybrid_forward(self, F, score_gt, score_pred, training_masks, *args, **kwargs):
         s1, s2, s3, s4, s5, C = F.split(score_gt, num_outputs=6, axis=1)
@@ -74,6 +76,9 @@ class DiceLoss(gluon.loss.Loss):
             kernel_dices.append(kernel_dice.asscalar())
         kernel_dice_loss = 1. - F.mean(F.array(kernel_dices))
         # print("kernel_loss:", kernel_dice_loss)
+        self.C_loss = C_dice_loss
+        self.kernel_loss = kernel_dice_loss
+        
         loss = self.lam * C_dice_loss + (1. - self.lam) * kernel_dice_loss
 
         return loss
