@@ -11,3 +11,7 @@ PSENet reproduce
 - 完成模型压缩以及部署部分
 - 完成识别部分
 - 完成端到端测试 
+
+### result:
+损失函数正常，只是kernel结果图的显示存在问题
+![img](loss.png)
