@@ -9,7 +9,7 @@ from model.loss import DiceLoss
 from mxnet import autograd
 import mxboard as mb
 
-def train(data_dir, pretrain_model, epoches=30, lr=0.01, batch_size=10, ctx=mx.cpu(), verbose_step=1, ckpt='ckpt'):
+def train(data_dir, pretrain_model, epoches=30, lr=0.001, batch_size=10, ctx=mx.cpu(), verbose_step=1, ckpt='ckpt'):
 
     icdar_loader = ICDAR(data_dir=data_dir)
     loader = DataLoader(icdar_loader, batch_size=batch_size, shuffle=True)
@@ -45,6 +45,7 @@ def train(data_dir, pretrain_model, epoches=30, lr=0.01, batch_size=10, ctx=mx.c
                 print("step: {}, loss: {}".format(i * batch_size, mx.nd.mean(loss).asscalar()))
             cumulative_loss += mx.nd.mean(loss).asscalar()
         print("Epoch {}, loss: {}".format(e, cumulative_loss))
+        net.save_parameters(os.path.join(ckpt, 'model_{}.param'.format(e)))
     summary_writer.close()
 if __name__ == '__main__':
     import sys
