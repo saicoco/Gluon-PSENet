@@ -27,9 +27,8 @@ def train(data_dir, pretrain_model, epoches=30, lr=0.001, batch_size=10, ctx=mx.
         cumulative_loss = 0
 
         for i, data in enumerate(loader):
-            data = data.as_in_context(ctx).transpose((0, 3, 1, 2))
+            data = data.as_in_context(ctx)
             im = data[:, :3, :, :]
-
             kernels = data[:, 3:9, ::4, ::4]
             training_masks = data[:, 9:, ::4, ::4]
 
@@ -39,11 +38,12 @@ def train(data_dir, pretrain_model, epoches=30, lr=0.001, batch_size=10, ctx=mx.
                 loss.backward()
             trainer.step(batch_size)
             if i%verbose_step==0:
-                summary_writer.add_image('score_map', kernels[0:1, 0:1, :, :], i*batch_size)
-                summary_writer.add_image('score_map_pred', kernels_pred[0:1, 0:1, :, :], i*batch_size)
-                summary_writer.add_scalar('loss', mx.nd.mean(loss).asscalar(), i*batch_size)
-                summary_writer.add_scalar('c_loss', mx.nd.mean(pse_loss.C_loss).asscalar(), i*batch_size)
-                summary_writer.add_scalar('kernel_loss', mx.nd.mean(pse_loss.kernel_loss).asscalar(), i*batch_size)
+                global_steps = icdar_loader.length * e + i * batch_size
+                summary_writer.add_image('score_map', kernels[0:1, 0:1, :, :], global_steps)
+                summary_writer.add_image('score_map_pred', kernels_pred[0:1, 0:1, :, :], global_steps)
+                summary_writer.add_scalar('loss', mx.nd.mean(loss).asscalar(), global_steps)
+                summary_writer.add_scalar('c_loss', mx.nd.mean(pse_loss.C_loss).asscalar(), global_steps)
+                summary_writer.add_scalar('kernel_loss', mx.nd.mean(pse_loss.kernel_loss).asscalar(), global_steps)
 
                 print("step: {}, loss: {}".format(i * batch_size, mx.nd.mean(loss).asscalar()))
             cumulative_loss += mx.nd.mean(loss).asscalar()

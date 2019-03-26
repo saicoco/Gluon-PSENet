@@ -11,13 +11,14 @@ import numpy as np
 from mxnet.gluon.data.vision import transforms
 
 class ICDAR(Dataset):
-    def __init__(self, data_dir, strides=4, input_size=(640, 640)):
+    def __init__(self, data_dir, strides=4, input_size=(640, 640), debug=False):
         super(ICDAR, self).__init__()
         self.data_dir = data_dir
         self.imglst = glob.glob1(self.data_dir, '*g')
         self.length = len(self.imglst)
         self.input_size = input_size
         self.strides = strides
+        self.debug = debug
         self.trans = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize([.485, .456, .406], [.229, .224, .225]),
@@ -42,10 +43,14 @@ class ICDAR(Dataset):
         imgs = random_crop(imgs, self.input_size)
 
         image, score_map, train_mask = imgs[0], imgs[1:-1], imgs[-2:-1]
+        if self.debug:
+            im_show = np.where(score_map[-1]==1, image[:,:,0], np.zeros_like(score_map[0]))
+            cv2.imshow('img', im_show)
+            cv2.waitKey()
+
         image, score_map, train_mask = mx.nd.array(image), mx.nd.array(score_map), mx.nd.array(train_mask)
-        # image = self.trans(image)
-        image = self.trans(image).transpose((1, 2, 0))
-        return mx.nd.Concat(image, score_map.transpose((1, 2, 0)), train_mask.transpose((1, 2, 0)), dim=-1)
+        image = self.trans(image)
+        return mx.nd.Concat(image, score_map, train_mask, dim=0)
 
     def __len__(self):
         return self.length
@@ -54,17 +59,14 @@ if __name__ == '__main__':
     from mxnet.gluon.data import dataloader
     import sys
     root_dir = sys.argv[1]
-    icdar = ICDAR(data_dir=root_dir)
+    icdar = ICDAR(data_dir=root_dir, debug=True)
     loader = dataloader.DataLoader(dataset=icdar, batch_size=10)
     for k, i in enumerate(loader):
-        img = i[0, :, :, :3].asnumpy()
+        img = i[0, :, :, :].asnumpy()
         kernels = i[0, :, :, 3:6].asnumpy()
-        cv2.imshow("img", np.concatenate([img.astype(np.uint8), kernels.astype(np.uint8)*255], axis=1))
-        cv2.waitKey()
-
         print img.shape
         if k==10:
-            cv2.destroyAllWindows()
+            # cv2.destroyAllWindows()``
             break
 
 
