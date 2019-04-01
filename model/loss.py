@@ -4,31 +4,60 @@ from mxnet import nd as F
 
 class DiceLoss_with_OHEM(gluon.loss.Loss):
 
-    def __init__(self, lam=0.7, weight=None, batch_axis=0, **kwargs):
-        super(DiceLoss, self).__init__(weight=weight, batch_axis=batch_axis, **kwargs)
+    def __init__(self, lam=0.7, weight=None, batch_axis=0, debug=False, **kwargs):
+        super(DiceLoss_with_OHEM, self).__init__(weight=weight, batch_axis=batch_axis, **kwargs)
         self.lam = lam
+        self.kernel_loss = 0.
+        self.C_loss = 0.
 
+        self.debug = debug
+    def _ohem_single(self, score_gt, score_pred, training_masks):
+        if self.debug:
+            print("score_gt_shape:", score_gt.shape, "score_pred_shape:", score_pred.shape, \
+                "train_mask_shape:", training_masks.shape)
+        pos_gt_thres = F.where(score_gt > 0.5, F.ones_like(score_gt), F.zeros_like(score_gt))
+        pos_num = F.sum(pos_gt_thres) - F.sum(pos_gt_thres * training_masks)
+
+        if pos_num == 0:
+            selected_mask = training_masks
+            return selected_mask
+        
+        neg_lt_thres = F.where(score_gt <= 0.5, F.ones_like(score_gt), F.zeros_like(score_gt))
+        neg_num = F.sum(neg_lt_thres)
+        neg_num = min(pos_num * 3, neg_num)
+
+        if neg_num == 0:
+            selected_mask = training_masks
+            return training_masks
+        neg_score = neg_lt_thres * score_pred
+        neg_score_sorted = F.sort(neg_score.reshape(-1), is_ascend=0, axis=None)
+        threshold = neg_score_sorted[neg_num - 1]
+        score_gt_thres = F.where(score_pred >= threshold, F.ones_like(score_pred), F.zeros_like(score_pred))
+
+        trained_sample_mask = F.logical_or(score_gt_thres, pos_gt_thres)
+        selected_mask = F.logical_and(trained_sample_mask, training_masks)
+
+        return selected_mask
+
+        
     def hybrid_forward(self, F, score_gt, score_pred, training_masks, *args, **kwargs):
+        
+        # cal ohem mask
+        selected_masks = []
+        for i in range(score_gt.shape[0]):
+            # cal for text region
+            selected_mask = self._ohem_single(score_gt[i:i+1, 5, :, :], score_pred[i:i+1, 5, :, :], training_masks[i:i+1, 0, :, :])
+            selected_masks.append(selected_mask)
+        selected_masks = F.concat(*selected_masks, dim=0)
 
         s1, s2, s3, s4, s5, C = F.split(score_gt, num_outputs=6, axis=1)
         s1_pred, s2_pred, s3_pred, s4_pred, s5_pred, C_pred = F.split(score_pred, num_outputs=6, axis=1)
 
-        all_pos_samples = F.sum(C)
-        all_neg_samples = F.sum(F.ones_like(C) - C)
-        all_samples = all_neg_samples + all_pos_samples
-        all_neg_samples = 3 * all_pos_samples if (3 * all_pos_samples) < all_neg_samples else all_neg_samples
-
-        # get negative sample and positive for C map
-        negative_sig_out = (F.ones_like(C) - C) * C_pred * training_masks
-
-        C_topk_neg_mask = F.topk(negative_sig_out.reshape((1, -1)), ret_typ='mask', k=int(all_neg_samples.asscalar())).reshape(negative_sig_out.shape)
-
-        C_topk_mask = C_topk_neg_mask + C
-        # classification loss
+        # for text map
         eps = 1e-5
-        intersection = F.sum(score_gt * score_pred * training_masks * C_topk_mask)
-        union = F.sum(training_masks * score_gt * C_topk_mask) + F.sum(training_masks * score_pred * C_topk_mask) + eps
-        C_dice_loss = 1. - (2 * intersection / union)
+        intersection = F.sum(C * C_pred * selected_masks)
+        union = F.sum(C * C * selected_masks) + F.sum(C_pred * C_pred * selected_mask) + eps
+        C_dice_loss = 1. - F.mean((2 * intersection / union))
 
 
         # loss for kernel
@@ -36,11 +65,14 @@ class DiceLoss_with_OHEM(gluon.loss.Loss):
         for s, s_pred in zip([s1, s2, s3, s4, s5], [s1_pred, s2_pred, s3_pred, s4_pred, s5_pred]):
             kernel_mask = F.where(s > 0.5, F.ones_like(s), F.zeros_like(s))
             kernel_intersection = F.sum(s * s_pred * training_masks * kernel_mask)
-            kernel_union = F.sum(training_masks * s * kernel_mask) + F.sum(
-                training_masks * s_pred * kernel_mask) + eps
+            kernel_union = F.sum(training_masks * s * s * kernel_mask) + F.sum(
+                training_masks * s_pred * s_pred * kernel_mask) + eps
             kernel_dice = 2. * kernel_intersection / kernel_union
             kernel_dices.append(kernel_dice.asscalar())
         kernel_dice_loss =1. - F.mean(F.array(kernel_dices))
+
+        self.kernel_loss = kernel_dice_loss
+        self.C_loss = C_dice_loss
 
         loss = self.lam * C_dice_loss + (1. - self.lam) * kernel_dice_loss
         
@@ -61,17 +93,17 @@ class DiceLoss(gluon.loss.Loss):
 
         # classification loss
         eps = 1e-5
-        intersection = F.sum(score_gt * score_pred * training_masks)
-        union = F.sum(training_masks * score_gt) + F.sum(training_masks * score_pred) + eps
-        C_dice_loss = 1. - (2 * intersection / union)
+        intersection = F.sum(C * C_pred * training_masks)
+        union = F.sum(training_masks * C * C) + F.sum(training_masks * C_pred * C_pred) + eps
+        C_dice_loss = 1. - F.mean((2 * intersection / union))
         # print("C_dice_loss:", C_dice_loss)
         # loss for kernel
         kernel_dices = []
         for s, s_pred in zip([s1, s2, s3, s4, s5], [s1_pred, s2_pred, s3_pred, s4_pred, s5_pred]):
             kernel_mask = F.where(s > 0.5, F.ones_like(s), F.zeros_like(s))
             kernel_intersection = F.sum(s * s_pred * training_masks * kernel_mask)
-            kernel_union = F.sum(training_masks * s * kernel_mask) + F.sum(
-                training_masks * s_pred * kernel_mask) + eps
+            kernel_union = F.sum(training_masks * s * s * kernel_mask) + F.sum(
+                training_masks * s_pred * s_pred * kernel_mask) + eps
             kernel_dice = 2. * kernel_intersection / kernel_union
             kernel_dices.append(kernel_dice.asscalar())
         kernel_dice_loss = 1. - F.mean(F.array(kernel_dices))
@@ -88,15 +120,15 @@ class DiceLoss(gluon.loss.Loss):
 if __name__ == '__main__':
     import numpy as np
     from mxnet import autograd
-    loss = DiceLoss()
+    loss = DiceLoss_with_OHEM(lam=0.7, debug=True)
     for i in range(2):
-        x = F.array(np.random.normal(size=(1, 6, 128, 128)))
+        x = F.array(np.random.normal(size=(6, 6, 128, 128)))
         x.attach_grad()
-        x_pred = F.array(np.random.normal(size=(1, 6, 128, 128)))
-        mask = F.ones(shape=(1, 1, 128, 128))
+        x_pred = F.array(np.random.normal(size=(6, 6, 128, 128)))
+        mask = F.ones(shape=(6, 1, 128, 128))
         with autograd.record():
             tmp_loss = loss.forward(x, x_pred, mask)
         tmp_loss.backward()
-        print x.grad
+        print tmp_loss
 
 

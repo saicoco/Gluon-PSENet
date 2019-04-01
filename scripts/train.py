@@ -10,7 +10,7 @@ from mxnet import autograd
 import mxboard as mb
 from mxnet import lr_scheduler as ls
 
-def train(data_dir, pretrain_model, epoches=30, lr=0.001, batch_size=10, ctx=mx.cpu(), verbose_step=1, ckpt='ckpt'):
+def train(data_dir, pretrain_model, epoches=3, lr=0.001, batch_size=10, ctx=mx.cpu(), verbose_step=1, ckpt='ckpt'):
 
     icdar_loader = ICDAR(data_dir=data_dir)
     loader = DataLoader(icdar_loader, batch_size=batch_size, shuffle=True)

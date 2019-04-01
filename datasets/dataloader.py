@@ -31,7 +31,7 @@ class ICDAR(Dataset):
         label_name = prefix + '.txt'
         text_polys, text_tags = parse_lines(os.path.join(self.data_dir, label_name))
         # im = cv2.imread(os.path.join(self.data_dir, img_name))
-        im = Image.open(os.path.join(self.data_dir, img_name))
+        im = Image.open(os.path.join(self.data_dir, img_name)).convert('RGB')
         im = np.array(im)[:, :, :3]
         im, text_polys = rescale(im, text_polys)
         score_maps, training_mask = shrink_polys(im, polys=text_polys, tags=text_tags, mini_scale_ratio=0.5, num_kernels=6)

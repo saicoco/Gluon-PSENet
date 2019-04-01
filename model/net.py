@@ -31,30 +31,43 @@ class PSENet(HybridBlock):
 
         self.decoder_conv1 = nn.HybridSequential(prefix='decoder_conv1')
         with self.decoder_conv1.name_scope():
-            self.dconv1_1x1 = nn.Conv2D(channels=256, kernel_size=(1, 1), activation='relu')
+            self.dconv1_1x1 = nn.Conv2D(channels=256, kernel_size=(1, 1))
             self.decoder_conv1.add(self.dconv1_1x1)
+            self.decoder_conv1.add(nn.BatchNorm())
+            self.decoder_conv1.add(nn.Activation('relu'))
+
         self.encoder_layer3 = nn.Conv2D(channels=256, kernel_size=(3, 3), padding=(1, 1), activation='relu')
 
         self.decoder_conv2 = nn.HybridSequential(prefix='decoder_conv2')
         with self.decoder_conv2.name_scope():
-            self.dconv2_1x1 = nn.Conv2D(channels=256, kernel_size=(1, 1), activation='relu')
+            self.dconv2_1x1 = nn.Conv2D(channels=256, kernel_size=(1, 1))
             self.decoder_conv2.add(self.dconv2_1x1)
+            self.decoder_conv2.add(nn.BatchNorm())
+            self.decoder_conv2.add(nn.Activation('relu'))
+            
         self.encoder_layer2 = nn.Conv2D(channels=256, kernel_size=(3, 3), padding=(1, 1), activation='relu')
 
         self.decoder_conv3 = nn.HybridSequential(prefix='decoder_conv3')
         with self.decoder_conv3.name_scope():
-            self.dconv3_1x1 = nn.Conv2D(channels=256, kernel_size=(1, 1), activation='relu')
+            self.dconv3_1x1 = nn.Conv2D(channels=256, kernel_size=(1, 1))
             self.decoder_conv3.add(self.dconv3_1x1)
+            self.decoder_conv3.add(nn.BatchNorm())
+            self.decoder_conv3.add(nn.Activation('relu'))
+            
         self.encoder_layer1 = nn.Conv2D(channels=256, kernel_size=(3, 3), padding=(1, 1), activation='relu')
 
         self.reduce_conv = nn.HybridSequential(prefix='reduce_conv')
         with self.reduce_conv.name_scope():
-            self.conv1_reduce = nn.Conv2D(channels=256, kernel_size=(1, 1), activation='relu')
+            self.conv1_reduce = nn.Conv2D(channels=256, kernel_size=(1, 1))
             self.reduce_conv.add(self.conv1_reduce)
+            self.reduce_conv.add(nn.BatchNorm())
+            self.reduce_conv.add(nn.Activation('relu'))
+            
         self.decoder_out = nn.HybridSequential(prefix='decoder_out')
         with self.decoder_out.name_scope():
             self.conv1_out = nn.Conv2D(channels=self.num_kernels, kernel_size=(1, 1), activation='sigmoid')
             self.decoder_out.add(self.conv1_out)
+            
     def hybrid_forward(self, F, x, *args, **kwargs):
         # forward
         N, C, H, W =  x.shape
