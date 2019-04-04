@@ -8,7 +8,7 @@ PSENet reproduce
 
 #### Network  
 
-模型部分参考至[gluoncv_model_zoo](https://gluon-cv.mxnet.io/model_zoo/classification.html)中**resnet50_v1s**,其他pretrain_model可以酌情替换，默认模型下载路径为`~/.mxnet/`下  
+模型部分参考至[gluoncv_model_zoo](https://gluon-cv.mxnet.io/model_zoo/classification.html)中**resnet50_v1b**,其他pretrain_model可以酌情替换，默认模型下载路径为`~/.mxnet/`下  
 
 #### Loss  
 loss部分直接使用dice_coefficient, OHEM部分实现存在BUG，需进一步修改。可以使用的损失函数：  
