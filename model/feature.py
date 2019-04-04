@@ -65,12 +65,6 @@ def _parse_network(network, outputs, inputs, pretrained, ctx, **kwargs):
         outputs = [outputs]
     assert len(outputs) > 0, "At least one outputs must be specified."
     outputs = [out if out.endswith('_output') else out + '_output' for out in outputs]
-    c = network.get_internals()
-    for item in c.list_outputs():
-        for out in outputs:
-            # print("item:", item)
-            if out in item:
-                print("output: ", item)
     outputs = [network.get_internals()[prefix + out] for out in outputs]
     return inputs, outputs, params
 
