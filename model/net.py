@@ -35,6 +35,7 @@ class PSENet(HybridBlock):
             self.decoder_out.add(nn.BatchNorm())
             self.decoder_out.add(nn.Activation('relu'))
             self.decoder_out.add(nn.Conv2D(self.num_kernels, 1, 1))
+            self.decoder_out.add(nn.Activation('sigmoid'))
             self.decoder_out.initialize(weight_init, ctx=ctx)
 
     def hybrid_forward(self, F, x, **kwargs):

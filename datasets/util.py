@@ -73,7 +73,7 @@ def poly_offset(img, poly, dis):
 
 def cal_offset(poly, r, max_shr=20):
     area, length = Polygon(poly).area, Polygon(poly).length
-    d = area * (1 - r**2) / length + 0.5
+    d = area * (1 - r) / (length + 0.005) + 0.5
     d = min(int(d), max_shr)
     return d
 

@@ -10,7 +10,7 @@ from mxnet import autograd
 import mxboard as mb
 from mxnet import lr_scheduler as ls
 
-def train(data_dir, pretrain_model, epoches=3, lr=0.001, batch_size=10, ctx=mx.cpu(), verbose_step=1, ckpt='ckpt'):
+def train(data_dir, pretrain_model, epoches=3, lr=0.001, batch_size=5, ctx=mx.cpu(), verbose_step=1, ckpt='ckpt'):
 
     icdar_loader = ICDAR(data_dir=data_dir)
     loader = DataLoader(icdar_loader, batch_size=batch_size, shuffle=True)
@@ -40,8 +40,8 @@ def train(data_dir, pretrain_model, epoches=3, lr=0.001, batch_size=10, ctx=mx.c
             trainer.step(batch_size)
             if i%verbose_step==0:
                 global_steps = icdar_loader.length * e + i * batch_size
-                # summary_writer.add_image('score_map', kernels[0:1, 0:1, :, :], global_steps)
-                # summary_writer.add_image('score_map_pred', kernels_pred[0:1, 0:1, :, :], global_steps)
+                summary_writer.add_image('score_map', kernels[0:1, 0:1, :, :], global_steps)
+                summary_writer.add_image('score_map_pred', kernels_pred[0:1, 0:1, :, :], global_steps)
                 summary_writer.add_scalar('loss', mx.nd.mean(loss).asscalar(), global_steps)
                 summary_writer.add_scalar('c_loss', mx.nd.mean(pse_loss.C_loss).asscalar(), global_steps)
                 summary_writer.add_scalar('kernel_loss', mx.nd.mean(pse_loss.kernel_loss).asscalar(), global_steps)

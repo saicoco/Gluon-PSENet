@@ -38,8 +38,9 @@ class ICDAR(Dataset):
         imgs = [im] + score_maps + [training_mask]
 
         # random scale, random rotate, random crop
-        imgs = random_rotate(imgs)
         imgs = random_scale(imgs)
+        if np.random.uniform(-1, 1) > 0.6:
+            imgs = random_rotate(imgs)
         imgs = random_crop(imgs, self.input_size)
 
         image, score_map, train_mask = imgs[0], imgs[1:-1], imgs[-2:-1]
