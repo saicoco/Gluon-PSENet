@@ -120,8 +120,9 @@ class DiceLoss(gluon.loss.Loss):
 if __name__ == '__main__':
     import numpy as np
     from mxnet import autograd
+    np.random.seed(29999)
     loss = DiceLoss_with_OHEM(lam=0.7, debug=True)
-    for i in range(2):
+    for i in range(1000):
         x = F.array(np.random.normal(size=(6, 6, 128, 128)))
         x.attach_grad()
         x_pred = F.array(np.random.normal(size=(6, 6, 128, 128)))

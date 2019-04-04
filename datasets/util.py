@@ -71,9 +71,10 @@ def poly_offset(img, poly, dis):
     cv2.fillPoly(img, ss.astype(np.int32), 1)
     return img
 
-def cal_offset(poly, r):
+def cal_offset(poly, r, max_shr=20):
     area, length = Polygon(poly).area, Polygon(poly).length
-    d = area * (1 - r**2) / length
+    d = area * (1 - r**2) / length + 0.5
+    d = min(int(d), max_shr)
     return d
 
 def shrink_polys(img, polys, tags, mini_scale_ratio, num_kernels=6):
