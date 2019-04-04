@@ -16,7 +16,8 @@ def train(data_dir, pretrain_model, epoches=3, lr=0.001, batch_size=10, ctx=mx.c
     loader = DataLoader(icdar_loader, batch_size=batch_size, shuffle=True)
     net = PSENet(num_kernels=6, ctx=ctx)
     # initial params
-    net.collect_params().initialize(mx.init.Normal(sigma=0.01), ctx=ctx)
+    net.collect_params().initialize(mx.init.Normal(sigma=0.1), ctx=ctx)
+    # net.initialize(ctx=ctx)
     # net.load_parameters(pretrain_model, ctx=ctx, allow_missing=True, ignore_extra=True)
     pse_loss = DiceLoss(lam=0.7)
 
@@ -39,8 +40,8 @@ def train(data_dir, pretrain_model, epoches=3, lr=0.001, batch_size=10, ctx=mx.c
             trainer.step(batch_size)
             if i%verbose_step==0:
                 global_steps = icdar_loader.length * e + i * batch_size
-                summary_writer.add_image('score_map', kernels[0:1, 0:1, :, :], global_steps)
-                summary_writer.add_image('score_map_pred', kernels_pred[0:1, 0:1, :, :], global_steps)
+                # summary_writer.add_image('score_map', kernels[0:1, 0:1, :, :], global_steps)
+                # summary_writer.add_image('score_map_pred', kernels_pred[0:1, 0:1, :, :], global_steps)
                 summary_writer.add_scalar('loss', mx.nd.mean(loss).asscalar(), global_steps)
                 summary_writer.add_scalar('c_loss', mx.nd.mean(pse_loss.C_loss).asscalar(), global_steps)
                 summary_writer.add_scalar('kernel_loss', mx.nd.mean(pse_loss.kernel_loss).asscalar(), global_steps)
@@ -54,7 +55,12 @@ if __name__ == '__main__':
     import sys
     data_dir = sys.argv[1]
     pretrain_model = sys.argv[2]
+    ctx = sys.argv[3]
     if len(sys.argv) < 2:
         print("Usage: python train.py $data_dir $pretrain_model")
-    train(data_dir=data_dir, pretrain_model=pretrain_model)
+    if eval(ctx) >= 0 :
+        devices = mx.gpu(eval(ctx))
+    else:
+        devices = mx.cpu()
+    train(data_dir=data_dir, pretrain_model=pretrain_model, ctx=devices)
 
