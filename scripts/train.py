@@ -14,7 +14,7 @@ def train(data_dir, pretrain_model, epoches=3, lr=0.001, batch_size=5, ctx=mx.cp
 
     icdar_loader = ICDAR(data_dir=data_dir)
     loader = DataLoader(icdar_loader, batch_size=batch_size, shuffle=True)
-    net = PSENet(num_kernels=6, ctx=ctx)
+    net = PSENet(num_kernels=7, ctx=ctx)
     # initial params
     net.collect_params().initialize(mx.init.Normal(sigma=0.1), ctx=ctx)
     # net.initialize(ctx=ctx)
@@ -27,15 +27,16 @@ def train(data_dir, pretrain_model, epoches=3, lr=0.001, batch_size=5, ctx=mx.cp
     for e in range(epoches):
         cumulative_loss = 0
 
-        for i, data in enumerate(loader):
-            data = data.as_in_context(ctx)
-            im = data[:, :3, :, :]
-            kernels = data[:, 3:9, ::4, ::4]
-            training_masks = data[:, 9:, ::4, ::4]
+        for i, item in enumerate(loader):
+            im, score_maps, kernels, training_masks = item
+            im = im.as_in_context(ctx)
+            score_maps = score_maps[:, :, ::4, ::4].as_in_context(ctx)
+            kernels = kernels[:, :, ::4, ::4].as_in_context(ctx)
+            training_masks = training_masks[:, :, ::4, ::4].as_in_context(ctx)
 
             with autograd.record():
                 kernels_pred = net(im)
-                loss = pse_loss(kernels, kernels_pred, training_masks)
+                loss = pse_loss(score_maps, kernels, kernels_pred, training_masks)
                 loss.backward()
             trainer.step(batch_size)
             if i%verbose_step==0:

@@ -40,29 +40,29 @@ class DiceLoss_with_OHEM(gluon.loss.Loss):
         return selected_mask
 
         
-    def hybrid_forward(self, F, score_gt, score_pred, training_masks, *args, **kwargs):
+    def hybrid_forward(self, F, score_gt, kernel_gt, score_pred, training_masks, *args, **kwargs):
         
         # cal ohem mask
         selected_masks = []
         for i in range(score_gt.shape[0]):
             # cal for text region
-            selected_mask = self._ohem_single(score_gt[i:i+1, 5, :, :], score_pred[i:i+1, 5, :, :], training_masks[i:i+1, 0, :, :])
+            selected_mask = self._ohem_single(score_gt[i:i+1], score_pred[i:i+1], training_masks[i:i+1])
             selected_masks.append(selected_mask)
         selected_masks = F.concat(*selected_masks, dim=0)
 
-        s1, s2, s3, s4, s5, C = F.split(score_gt, num_outputs=6, axis=1)
-        s1_pred, s2_pred, s3_pred, s4_pred, s5_pred, C_pred = F.split(score_pred, num_outputs=6, axis=1)
+        s1, s2, s3, s4, s5, s6 = F.split(kernel_gt, num_outputs=6, axis=1)
+        s1_pred, s2_pred, s3_pred, s4_pred, s5_pred, s6_pred, C_pred = F.split(score_pred, num_outputs=7, axis=1)
 
         # for text map
         eps = 1e-5
-        intersection = F.sum(C * C_pred * selected_masks)
-        union = F.sum(C * C * selected_masks) + F.sum(C_pred * C_pred * selected_mask) + eps
+        intersection = F.sum(score_gt * C_pred * selected_masks)
+        union = F.sum(score_gt * score_gt * selected_masks) + F.sum(C_pred * C_pred * selected_mask) + eps
         C_dice_loss = 1. - F.mean((2 * intersection / union))
 
 
         # loss for kernel
         kernel_dices = []
-        for s, s_pred in zip([s1, s2, s3, s4, s5], [s1_pred, s2_pred, s3_pred, s4_pred, s5_pred]):
+        for s, s_pred in zip([s1, s2, s3, s4, s5, s6], [s1_pred, s2_pred, s3_pred, s4_pred, s5_pred, s6_pred]):
             kernel_mask = F.where(s > 0.5, F.ones_like(s), F.zeros_like(s))
             kernel_intersection = F.sum(s * s_pred * training_masks * kernel_mask)
             kernel_union = F.sum(training_masks * s * s * kernel_mask) + F.sum(
@@ -87,20 +87,20 @@ class DiceLoss(gluon.loss.Loss):
         self.kernel_loss = 0.
         self.C_loss = 0.
 
-    def hybrid_forward(self, F, score_gt, score_pred, training_masks, *args, **kwargs):
-        s1, s2, s3, s4, s5, C = F.split(score_gt, num_outputs=6, axis=1)
-        s1_pred, s2_pred, s3_pred, s4_pred, s5_pred, C_pred = F.split(score_pred, num_outputs=6, axis=1)
+    def hybrid_forward(self, F, score_gt, kernel_gt, score_pred, training_masks, *args, **kwargs):
+        s1, s2, s3, s4, s5, s6 = F.split(kernel_gt, num_outputs=6, axis=1)
+        s1_pred, s2_pred, s3_pred, s4_pred, s5_pred, s6_pred, C_pred = F.split(score_pred, num_outputs=7, axis=1)
 
         # classification loss
         eps = 1e-5
-        intersection = F.sum(C * C_pred * training_masks)
-        union = F.sum(training_masks * C * C) + F.sum(training_masks * C_pred * C_pred) + eps
+        intersection = F.sum(score_gt * C_pred * training_masks)
+        union = F.sum(training_masks * score_gt * score_gt) + F.sum(training_masks * C_pred * C_pred) + eps
         C_dice_loss = 1. - F.mean((2 * intersection / union))
         # print("C_dice_loss:", C_dice_loss)
         # loss for kernel
         kernel_dices = []
-        for s, s_pred in zip([s1, s2, s3, s4, s5], [s1_pred, s2_pred, s3_pred, s4_pred, s5_pred]):
-            kernel_mask = F.where(s > 0.5, F.ones_like(s), F.zeros_like(s))
+        for s, s_pred in zip([s1, s2, s3, s4, s5, s6], [s1_pred, s2_pred, s3_pred, s4_pred, s5_pred, s6_pred]):
+            kernel_mask = F.where((score_gt * training_masks > 0.5), F.ones_like(s), F.zeros_like(s))
             kernel_intersection = F.sum(s * s_pred * training_masks * kernel_mask)
             kernel_union = F.sum(training_masks * s * s * kernel_mask) + F.sum(
                 training_masks * s_pred * s_pred * kernel_mask) + eps
@@ -122,14 +122,16 @@ if __name__ == '__main__':
     from mxnet import autograd
     np.random.seed(29999)
     loss = DiceLoss_with_OHEM(lam=0.7, debug=True)
-    for i in range(1000):
+    # loss = DiceLoss()
+    for i in range(1):
+        score_gt = F.array(np.random.normal(size=(6, 1, 128, 128)))
         x = F.array(np.random.normal(size=(6, 6, 128, 128)))
         x.attach_grad()
-        x_pred = F.array(np.random.normal(size=(6, 6, 128, 128)))
+        x_pred = F.array(np.random.normal(size=(6, 7, 128, 128)))
         mask = F.ones(shape=(6, 1, 128, 128))
         with autograd.record():
-            tmp_loss = loss.forward(x, x_pred, mask)
-        tmp_loss.backward()
+            tmp_loss = loss.forward(score_gt, x, x_pred, mask)
+            # tmp_loss.backward()
         print tmp_loss
 
 
