@@ -7,6 +7,13 @@ from shapely.geometry import Polygon
 import pyclipper
 import os
 
+
+def random_horizontal_flip(imgs):
+    if random.random() < 0.5:
+        for i in range(len(imgs)):
+            imgs[i] = np.flip(imgs[i], axis=1).copy()
+    return imgs
+
 def random_crop(imgs, img_size):
     """
 
@@ -54,13 +61,6 @@ def random_rotate(imgs):
     return imgs
 
 
-def random_scale(imgs, scales=[0.5, 1.0, 2.0]):
-    rd_scale = np.random.choice(scales)
-    for idx in range(len(imgs)):
-        imgs[idx] = cv2.resize(imgs[idx], dsize=None, fx=rd_scale, fy=rd_scale)
-        imgs[idx], _ = rescale(imgs[idx], text_polys=None)
-    return imgs
-
 def poly_offset(img, poly, dis):
     subj_poly = np.array(poly)
      # Polygon(subj_poly).area, Polygon(subj_poly).length
@@ -73,18 +73,23 @@ def poly_offset(img, poly, dis):
 
 def cal_offset(poly, r, max_shr=20):
     area, length = Polygon(poly).area, Polygon(poly).length
+    r = r * r
     d = area * (1 - r) / (length + 0.005) + 0.5
     d = min(int(d), max_shr)
     return d
 
 def shrink_polys(img, polys, tags, mini_scale_ratio, num_kernels=6):
     h, w = img.shape[:2]
-    f = lambda x: 1. - (1. - mini_scale_ratio)*(num_kernels - x - 1)/(num_kernels - 1.)
+    f = lambda x: 1. - (1. - mini_scale_ratio)/(num_kernels - 1.) * x
     r = [f(i) for i in range(num_kernels)]
     training_mask = np.ones((h, w), dtype=np.float32)
-    score_maps = np.zeros((h, w, num_kernels), dtype=np.uint8)
-
-    # TODO: debug cal_offset
+    kernel_maps = np.zeros((h, w, num_kernels), dtype=np.uint8)
+    score_map = np.zeros((h, w), dtype=np.float32)
+    for poly, tag in zip(polys, tags):
+        poly = np.array(poly, dtype=np.float32).reshape((-1, 2))
+        cv2.fillPoly(score_map, poly.astype(np.int32)[np.newaxis, :, :], 1)
+        
+    
     for i, val in enumerate(r):
         tmp_score_map = np.zeros((h, w), dtype=np.float32)
         for poly, tag in zip(polys, tags):
@@ -93,8 +98,9 @@ def shrink_polys(img, polys, tags, mini_scale_ratio, num_kernels=6):
                 cv2.fillPoly(training_mask, poly.astype(np.int32)[np.newaxis, :, :], 0)
             d = cal_offset(poly, val)
             tmp_score_map = poly_offset(tmp_score_map, poly, d)
-        score_maps[:, :, i] = tmp_score_map
-    return [score_maps[:, :, i] for i in xrange(num_kernels)], training_mask
+        kernel_maps[:, :, i] = tmp_score_map
+    # return [kernel_maps[:, :, i] for i in xrange(num_kernels)], training_mask
+    return score_map, kernel_maps, training_mask
 
 def parse_lines(filename):
     with open(filename, 'r') as f:
@@ -128,14 +134,22 @@ def parse_lines(filename):
     return np.array(text_polys, dtype=np.float32), np.array(text_tags, dtype=np.bool)
 
 
-def rescale(img, text_polys, min_side=640):
+def random_scale(img, text_polys, min_side=640):
     h, w = img.shape[:2]
     scale = 1.0
-    if min(h, w) < min_side:
-        if h <= w:
-            scale = 1.0*min_side / h
-        else:
-            scale = 1.0 * min_side / w
+    if max(h, w) > 1280.:
+        scale = 1280.0 / max(h, w)
+        img = cv2.resize(img, dsize=None, fx=scale, fy=scale)
+    if text_polys is not None:
+        text_polys *= scale
+        text_polys = np.array(text_polys)
+    
+    h, w = img.shape[:2]
+    random_scale = np.array([0.5, 1.0, 2.0, 3.0])
+    scale = np.random.choice(random_scale)
+
+    if min(h, w) * scale < min_side:
+        scale = (min_side + 10) * 1.0 / min(h, w)
     img = cv2.resize(img, dsize=None, fx=scale, fy=scale)
     if text_polys is not None:
         text_polys *= scale

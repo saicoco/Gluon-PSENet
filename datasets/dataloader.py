@@ -1,7 +1,7 @@
 # coding=utf-8
 from mxnet.gluon.data.dataset import Dataset
 from mxnet.gluon.data.vision import transforms
-from util import random_crop, random_rotate, random_scale, shrink_polys, parse_lines, save_images, rescale
+from util import random_crop, random_rotate, random_scale, shrink_polys, parse_lines, save_images, random_horizontal_flip
 import os
 import glob
 import cv2
@@ -20,6 +20,7 @@ class ICDAR(Dataset):
         self.strides = strides
         self.debug = debug
         self.trans = transforms.Compose([
+            transforms.RandomColorJitter(brightness = 32.0 / 255, saturation = 0.5),
             transforms.ToTensor(),
             transforms.Normalize([.485, .456, .406], [.229, .224, .225]),
         ])
@@ -33,25 +34,28 @@ class ICDAR(Dataset):
         # im = cv2.imread(os.path.join(self.data_dir, img_name))
         im = Image.open(os.path.join(self.data_dir, img_name)).convert('RGB')
         im = np.array(im)[:, :, :3]
-        im, text_polys = rescale(im, text_polys)
-        score_maps, training_mask = shrink_polys(im, polys=text_polys, tags=text_tags, mini_scale_ratio=0.5, num_kernels=6)
-        imgs = [im] + score_maps + [training_mask]
+        im, text_polys = random_scale(im, text_polys)
+        score_maps, kernel_maps, training_mask = shrink_polys(im, polys=text_polys, tags=text_tags, mini_scale_ratio=0.5, num_kernels=6)
+        imgs = [im, score_maps, kernel_maps, training_mask]
 
-        # random scale, random rotate, random crop
-        imgs = random_scale(imgs)
-        if np.random.uniform(-1, 1) > 0.6:
-            imgs = random_rotate(imgs)
+        # random_flip,random rotate, random crop
+
+        imgs = random_horizontal_flip(imgs)
+        imgs = random_rotate(imgs)
         imgs = random_crop(imgs, self.input_size)
 
-        image, score_map, train_mask = imgs[0], imgs[1:-1], imgs[-2:-1]
+        image, score_map, kernel_map, training_mask = imgs[0], imgs[1], imgs[2], imgs[3]
         if self.debug:
-            im_show = np.where(score_map[-1]==1, image[:,:,0], np.zeros_like(score_map[0]))
+            
+            im_show = np.where(np.concatenate([score_map[:, :, np.newaxis]]*3, axis=2)==1, image[:,:,::-1], np.zeros_like(image))
             cv2.imshow('img', im_show)
             cv2.waitKey()
-
-        image, score_map, train_mask = mx.nd.array(image), mx.nd.array(score_map), mx.nd.array(train_mask)
+        image = mx.nd.array(image)
+        score_map = mx.nd.array(score_map)
+        kernal_map = mx.nd.array(kernel_map)
+        training_mask = mx.nd.array(training_mask)
         image = self.trans(image)
-        return mx.nd.Concat(image, score_map, train_mask, dim=0)
+        return image, score_map, kernel_map, training_mask
 
     def __len__(self):
         return self.length
@@ -59,15 +63,16 @@ class ICDAR(Dataset):
 if __name__ == '__main__':
     from mxnet.gluon.data import dataloader
     import sys
+    
     root_dir = sys.argv[1]
     icdar = ICDAR(data_dir=root_dir, debug=True)
-    loader = dataloader.DataLoader(dataset=icdar, batch_size=10)
-    for k, i in enumerate(loader):
-        img = i[0, :, :, :].asnumpy()
-        kernels = i[0, :, :, 3:6].asnumpy()
+    loader = dataloader.DataLoader(dataset=icdar, batch_size=1)
+    for k, item in enumerate(loader):
+        img, score, kernel, training_mask = item
+        img = img.asnumpy()
+        kernels = kernel.asnumpy()
         print img.shape
         if k==10:
-            # cv2.destroyAllWindows()``
             break
 
 
