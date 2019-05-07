@@ -50,8 +50,8 @@ class DiceLoss_with_OHEM(gluon.loss.Loss):
             selected_masks.append(selected_mask)
         selected_masks = F.concat(*selected_masks, dim=0)
 
-        s1, s2, s3, s4, s5, s6 = F.split(kernel_gt, num_outputs=6, axis=1)
-        s1_pred, s2_pred, s3_pred, s4_pred, s5_pred, s6_pred, C_pred = F.split(score_pred, num_outputs=7, axis=1)
+        s1, s2, s3, s4, s5, s6 = F.split(kernel_gt, num_outputs=6, axis=3, squeeze_axis=True)
+        s1_pred, s2_pred, s3_pred, s4_pred, s5_pred, s6_pred, C_pred = F.split(score_pred, num_outputs=7, axis=1, squeeze_axis=True)
 
         # for text map
         eps = 1e-5
@@ -64,6 +64,8 @@ class DiceLoss_with_OHEM(gluon.loss.Loss):
         kernel_dices = []
         for s, s_pred in zip([s1, s2, s3, s4, s5, s6], [s1_pred, s2_pred, s3_pred, s4_pred, s5_pred, s6_pred]):
             kernel_mask = F.where(s > 0.5, F.ones_like(s), F.zeros_like(s))
+            kernel_mask = F.cast(kernel_mask, dtype='float32')
+            s = F.cast(s, dtype='float32')
             kernel_intersection = F.sum(s * s_pred * training_masks * kernel_mask)
             kernel_union = F.sum(training_masks * s * s * kernel_mask) + F.sum(
                 training_masks * s_pred * s_pred * kernel_mask) + eps
@@ -88,8 +90,8 @@ class DiceLoss(gluon.loss.Loss):
         self.C_loss = 0.
 
     def hybrid_forward(self, F, score_gt, kernel_gt, score_pred, training_masks, *args, **kwargs):
-        s1, s2, s3, s4, s5, s6 = F.split(kernel_gt, num_outputs=6, axis=1)
-        s1_pred, s2_pred, s3_pred, s4_pred, s5_pred, s6_pred, C_pred = F.split(score_pred, num_outputs=7, axis=1)
+        s1, s2, s3, s4, s5, s6 = F.split(kernel_gt, num_outputs=6, axis=3, squeeze_axis=True)
+        s1_pred, s2_pred, s3_pred, s4_pred, s5_pred, s6_pred, C_pred = F.split(score_pred, num_outputs=7, axis=1, squeeze_axis=True)
 
         # classification loss
         eps = 1e-5
@@ -101,6 +103,8 @@ class DiceLoss(gluon.loss.Loss):
         kernel_dices = []
         for s, s_pred in zip([s1, s2, s3, s4, s5, s6], [s1_pred, s2_pred, s3_pred, s4_pred, s5_pred, s6_pred]):
             kernel_mask = F.where((score_gt * training_masks > 0.5), F.ones_like(s), F.zeros_like(s))
+            kernel_mask = F.cast(kernel_mask, dtype='float32')
+            s = F.cast(s, dtype='float32')
             kernel_intersection = F.sum(s * s_pred * training_masks * kernel_mask)
             kernel_union = F.sum(training_masks * s * s * kernel_mask) + F.sum(
                 training_masks * s_pred * s_pred * kernel_mask) + eps
@@ -124,11 +128,11 @@ if __name__ == '__main__':
     loss = DiceLoss_with_OHEM(lam=0.7, debug=True)
     # loss = DiceLoss()
     for i in range(1):
-        score_gt = F.array(np.random.normal(size=(6, 1, 128, 128)))
-        x = F.array(np.random.normal(size=(6, 6, 128, 128)))
+        score_gt = F.array(np.random.normal(size=(6, 128, 128)))
+        x = F.array(np.random.normal(size=(6, 128, 128, 6)))
         x.attach_grad()
         x_pred = F.array(np.random.normal(size=(6, 7, 128, 128)))
-        mask = F.ones(shape=(6, 1, 128, 128))
+        mask = F.ones(shape=(6, 128, 128))
         with autograd.record():
             tmp_loss = loss.forward(score_gt, x, x_pred, mask)
             # tmp_loss.backward()

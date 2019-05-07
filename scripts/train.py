@@ -30,9 +30,9 @@ def train(data_dir, pretrain_model, epoches=3, lr=0.001, batch_size=5, ctx=mx.cp
         for i, item in enumerate(loader):
             im, score_maps, kernels, training_masks = item
             im = im.as_in_context(ctx)
-            score_maps = score_maps[:, :, ::4, ::4].as_in_context(ctx)
-            kernels = kernels[:, :, ::4, ::4].as_in_context(ctx)
-            training_masks = training_masks[:, :, ::4, ::4].as_in_context(ctx)
+            score_maps = score_maps[:, ::4, ::4].as_in_context(ctx)
+            kernels = kernels[:, ::4, ::4, :].as_in_context(ctx)
+            training_masks = training_masks[:, ::4, ::4].as_in_context(ctx)
 
             with autograd.record():
                 kernels_pred = net(im)

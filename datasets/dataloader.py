@@ -51,9 +51,9 @@ class ICDAR(Dataset):
             cv2.imshow('img', im_show)
             cv2.waitKey()
         image = mx.nd.array(image)
-        score_map = mx.nd.array(score_map)
-        kernal_map = mx.nd.array(kernel_map)
-        training_mask = mx.nd.array(training_mask)
+        score_map = mx.nd.array(score_map, dtype=np.float32)
+        kernal_map = mx.nd.array(kernel_map, dtype=np.float32)
+        training_mask = mx.nd.array(training_mask, dtype=np.float32)
         image = self.trans(image)
         return image, score_map, kernel_map, training_mask
 
