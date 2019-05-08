@@ -9,6 +9,7 @@ from model.loss import DiceLoss
 from mxnet import autograd
 import mxboard as mb
 from mxnet import lr_scheduler as ls
+import os
 
 def train(data_dir, pretrain_model, epoches=3, lr=0.001, batch_size=5, ctx=mx.cpu(), verbose_step=1, ckpt='ckpt'):
 
@@ -22,7 +23,7 @@ def train(data_dir, pretrain_model, epoches=3, lr=0.001, batch_size=5, ctx=mx.cp
     pse_loss = DiceLoss(lam=0.7)
 
     cos_shc = ls.PolyScheduler(max_update=icdar_loader.length * epoches//batch_size, base_lr=lr)
-    trainer = Trainer(net.collect_params(), 'adam', {'learning_rate': lr, 'lr_scheduler':cos_shc})
+    trainer = Trainer(net.collect_params(), 'sgd', {'learning_rate': lr, 'lr_scheduler':cos_shc})
     summary_writer = mb.SummaryWriter(ckpt)
     for e in range(epoches):
         cumulative_loss = 0

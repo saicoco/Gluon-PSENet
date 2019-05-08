@@ -27,8 +27,9 @@ class PSENet(HybridBlock):
                 extra_conv.add(nn.BatchNorm())
                 extra_conv.add(nn.Activation('relu'))
             extra_conv.initialize(weight_init, ctx=ctx)
+            self.register_child(extra_conv)
             self.extrac_convs.append(extra_conv)
-        
+
         self.decoder_out = nn.HybridSequential(prefix='decoder_out')
         with self.decoder_out.name_scope():
             self.decoder_out.add(nn.Conv2D(256, 3, 1, 1))
@@ -55,9 +56,10 @@ class PSENet(HybridBlock):
 
 if __name__ == '__main__':
     import numpy as np
-    fpn = PSENet(num_kernels=6, pretrained=True)
+    fpn = PSENet(num_kernels=7, pretrained=True)
     fpn.initialize(ctx=mx.cpu())
     x = mx.nd.array([np.random.normal(size=(3, 512, 512))])
+    fpn.hybridize()
     print map(lambda x:x.shape, fpn(x))
 
 

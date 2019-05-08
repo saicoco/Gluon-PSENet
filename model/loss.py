@@ -21,7 +21,7 @@ class DiceLoss_with_OHEM(gluon.loss.Loss):
         if pos_num == 0:
             selected_mask = training_masks
             return selected_mask
-        
+
         neg_lt_thres = F.where(score_gt <= 0.5, F.ones_like(score_gt), F.zeros_like(score_gt))
         neg_num = F.sum(neg_lt_thres)
         neg_num = min(pos_num * 3, neg_num)
@@ -39,9 +39,9 @@ class DiceLoss_with_OHEM(gluon.loss.Loss):
 
         return selected_mask
 
-        
+
     def hybrid_forward(self, F, score_gt, kernel_gt, score_pred, training_masks, *args, **kwargs):
-        
+
         # cal ohem mask
         selected_masks = []
         for i in range(score_gt.shape[0]):
@@ -56,19 +56,19 @@ class DiceLoss_with_OHEM(gluon.loss.Loss):
         # for text map
         eps = 1e-5
         intersection = F.sum(score_gt * C_pred * selected_masks)
-        union = F.sum(score_gt * score_gt * selected_masks) + F.sum(C_pred * C_pred * selected_mask) + eps
+        union = F.sum(score_gt * selected_masks) + F.sum(C_pred * selected_mask) + eps
         C_dice_loss = 1. - F.mean((2 * intersection / union))
 
 
         # loss for kernel
         kernel_dices = []
         for s, s_pred in zip([s1, s2, s3, s4, s5, s6], [s1_pred, s2_pred, s3_pred, s4_pred, s5_pred, s6_pred]):
-            kernel_mask = F.where(s > 0.5, F.ones_like(s), F.zeros_like(s))
+            kernel_mask = F.where(s_pred > 0.5, F.ones_like(s_pred), F.zeros_like(s_pred))
             kernel_mask = F.cast(kernel_mask, dtype='float32')
             s = F.cast(s, dtype='float32')
             kernel_intersection = F.sum(s * s_pred * training_masks * kernel_mask)
-            kernel_union = F.sum(training_masks * s * s * kernel_mask) + F.sum(
-                training_masks * s_pred * s_pred * kernel_mask) + eps
+            kernel_union = F.sum(training_masks * s * kernel_mask) + F.sum(
+                training_masks * s_pred * kernel_mask) + eps
             kernel_dice = 2. * kernel_intersection / kernel_union
             kernel_dices.append(kernel_dice.asscalar())
         kernel_dice_loss =1. - F.mean(F.array(kernel_dices))
@@ -77,7 +77,7 @@ class DiceLoss_with_OHEM(gluon.loss.Loss):
         self.C_loss = C_dice_loss
 
         loss = self.lam * C_dice_loss + (1. - self.lam) * kernel_dice_loss
-        
+
         return loss
 
 
@@ -96,25 +96,25 @@ class DiceLoss(gluon.loss.Loss):
         # classification loss
         eps = 1e-5
         intersection = F.sum(score_gt * C_pred * training_masks)
-        union = F.sum(training_masks * score_gt * score_gt) + F.sum(training_masks * C_pred * C_pred) + eps
+        union = F.sum(training_masks * score_gt) + F.sum(training_masks * C_pred) + eps
         C_dice_loss = 1. - F.mean((2 * intersection / union))
         # print("C_dice_loss:", C_dice_loss)
         # loss for kernel
         kernel_dices = []
         for s, s_pred in zip([s1, s2, s3, s4, s5, s6], [s1_pred, s2_pred, s3_pred, s4_pred, s5_pred, s6_pred]):
-            kernel_mask = F.where((score_gt * training_masks > 0.5), F.ones_like(s), F.zeros_like(s))
+            kernel_mask = F.where((s_pred * training_masks > 0.5), F.ones_like(s_pred), F.zeros_like(s_pred))
             kernel_mask = F.cast(kernel_mask, dtype='float32')
             s = F.cast(s, dtype='float32')
             kernel_intersection = F.sum(s * s_pred * training_masks * kernel_mask)
-            kernel_union = F.sum(training_masks * s * s * kernel_mask) + F.sum(
-                training_masks * s_pred * s_pred * kernel_mask) + eps
+            kernel_union = F.sum(training_masks * s * kernel_mask) + F.sum(
+                training_masks * s_pred * kernel_mask) + eps
             kernel_dice = 2. * kernel_intersection / kernel_union
             kernel_dices.append(kernel_dice.asscalar())
         kernel_dice_loss = 1. - F.mean(F.array(kernel_dices))
         # print("kernel_loss:", kernel_dice_loss)
         self.C_loss = C_dice_loss
         self.kernel_loss = kernel_dice_loss
-        
+
         loss = self.lam * C_dice_loss + (1. - self.lam) * kernel_dice_loss
 
         return loss
