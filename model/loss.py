@@ -72,7 +72,7 @@ class DiceLoss_with_OHEM(gluon.loss.Loss):
             kernel_dice = 2. * kernel_intersection / kernel_union
             kernel_dice = 1. - F.mean((2. * kernel_intersection / kernel_union))
             kernel_dices.append(kernel_dice)
-        kernel_dice_loss =F.mean(kernel_dices)
+        kernel_dice_loss =F.mean(F.array(kernel_dices))
 
         self.kernel_loss = kernel_dice_loss
         self.C_loss = C_dice_loss
@@ -109,8 +109,8 @@ class DiceLoss(gluon.loss.Loss):
             kernel_intersection = F.sum(s * s_pred * kernel_mask, axis=1)
             kernel_union = F.sum(s * kernel_mask, axis=1) + F.sum(s_pred * kernel_mask, axis=1) + eps
             kernel_dice = 1. - F.mean((2. * kernel_intersection / kernel_union))
-            kernel_dices.append(kernel_dice)
-        kernel_dice_loss = F.mean(kernel_dices)
+            kernel_dices.append(kernel_dice.asscalar())
+        kernel_dice_loss = F.mean(F.array(kernel_dices))
         # print("kernel_loss:", kernel_dice_loss)
         self.C_loss = C_dice_loss
         self.kernel_loss = kernel_dice_loss
