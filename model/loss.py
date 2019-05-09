@@ -102,15 +102,14 @@ class DiceLoss(gluon.loss.Loss):
         # loss for kernel
         kernel_dices = []
         for s, s_pred in zip([s1, s2, s3, s4, s5, s6], [s1_pred, s2_pred, s3_pred, s4_pred, s5_pred, s6_pred]):
-            kernel_mask = F.where((s_pred * training_masks > 0.5), F.ones_like(s_pred), F.zeros_like(s_pred))
+            kernel_mask = F.where((C_pred * training_masks > 0.5), F.ones_like(C_pred), F.zeros_like(C_pred))
             kernel_mask = F.cast(kernel_mask, dtype='float32')
             s = F.cast(s, dtype='float32')
-            kernel_intersection = F.sum(s * s_pred * training_masks * kernel_mask)
-            kernel_union = F.sum(training_masks * s * kernel_mask) + F.sum(
-                training_masks * s_pred * kernel_mask) + eps
-            kernel_dice = 2. * kernel_intersection / kernel_union
+            kernel_intersection = F.sum(s * s_pred * kernel_mask)
+            kernel_union = F.sum(s * kernel_mask) + F.sum(s_pred * kernel_mask) + eps
+            kernel_dice = 1. - F.mean((2. * kernel_intersection / kernel_union))
             kernel_dices.append(kernel_dice.asscalar())
-        kernel_dice_loss = 1. - F.mean(F.array(kernel_dices))
+        kernel_dice_loss = F.mean(F.array(kernel_dices))
         # print("kernel_loss:", kernel_dice_loss)
         self.C_loss = C_dice_loss
         self.kernel_loss = kernel_dice_loss
@@ -125,8 +124,8 @@ if __name__ == '__main__':
     import numpy as np
     from mxnet import autograd
     np.random.seed(29999)
-    loss = DiceLoss_with_OHEM(lam=0.7, debug=True)
-    # loss = DiceLoss()
+    # loss = DiceLoss_with_OHEM(lam=0.7, debug=True)
+    loss = DiceLoss(lam=1)
     for i in range(1):
         score_gt = F.array(np.random.normal(size=(6, 128, 128)))
         x = F.array(np.random.normal(size=(6, 128, 128, 6)))
