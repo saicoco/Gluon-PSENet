@@ -10,7 +10,8 @@ import os
 from mxnet.gluon.data.vision import transforms
 import numpy as np
 import time
-
+import logging
+logging.basicConfig(level=logging.INFO)
 
 def resize_image(im, max_side_len=1200):
     '''
@@ -52,7 +53,7 @@ References
 2. https://github.com/whai362/PSENet/issues/15
 
 """
-def detect(seg_maps, image_w, image_h, min_area_thresh=10, seg_map_thresh=0.9, ratio = 1):
+def detect(seg_maps, image_w, image_h, min_area_thresh=10, seg_map_thresh=0.1, ratio = 1):
     '''
     restore text boxes from score map and geo map
     :param seg_maps:
@@ -63,28 +64,27 @@ def detect(seg_maps, image_w, image_h, min_area_thresh=10, seg_map_thresh=0.9, r
     :return:
     '''
     if len(seg_maps.shape) == 4:
-        seg_maps = seg_maps[0, :, :, ]
+        seg_maps = seg_maps[-1, :, :]
     #get kernals, sequence: 0->n, max -> min
     kernals = []
-    one = np.ones_like(seg_maps[..., 0], dtype=np.uint8)
-    zero = np.zeros_like(seg_maps[..., 0], dtype=np.uint8)
+    one = np.ones_like(seg_maps[-1], dtype=np.uint8)
+    zero = np.zeros_like(seg_maps[-1], dtype=np.uint8)
     thresh = seg_map_thresh
-    for i in range(seg_maps.shape[-1]-1, -1, -1):
-        kernal = np.where(seg_maps[..., i]>thresh, one, zero)
+    for i in range(seg_maps.shape[0]-1, -1, -1):
+        kernal = np.where(seg_maps[i]>thresh, one, zero)
         kernals.append(kernal)
         thresh = seg_map_thresh*ratio
-    mask_res, label_values = pse_poster.pse(kernals, min_area_thresh)
+    mask_res = pse_poster.pse(kernals, min_area_thresh)
     
     mask_res = np.array(mask_res)
     mask_res_resized = cv2.resize(mask_res, (image_w, image_h), interpolation=cv2.INTER_NEAREST)
     boxes = []
-    for label_value in label_values:
-        #(y,x)
-        points = np.argwhere(mask_res_resized==label_value)
-        points = points[:, (1,0)]
-        rect = cv2.minAreaRect(points)
-        box = cv2.boxPoints(rect)
-        boxes.append(box)
+    
+    points = np.argwhere(mask_res_resized==1)
+    points = points[:, (1,0)]
+    rect = cv2.minAreaRect(points)
+    box = cv2.boxPoints(rect)
+    boxes.append(box)
 
     return np.array(boxes), kernals
 
@@ -97,7 +97,7 @@ def inference(data_root, ckpt, out_dir='result', target_size=1024, no_write_imag
         target_size: resize img to target size to inference
     """
     # load weights
-    net = PSENet(num_kernels=6, ctx=ctx)
+    net = PSENet(num_kernels=7, ctx=ctx)
     net.load_parameters(ckpt)
     
     trans = transforms.Compose([
@@ -109,14 +109,19 @@ def inference(data_root, ckpt, out_dir='result', target_size=1024, no_write_imag
     for imname in imglst:
         im = cv2.imread(os.path.join(data_root, imname))
         im_res, (ratio_h, ratio_w) = resize_image(im, target_size)
+        h, w, _ = im_res.shape
+        im_res = mx.nd.array(im_res)
         im_res = trans(im_res)
         # prediction kernel and segmentation result
-        predict_kernels = net(im)
+        predict_kernels = net(im_res.expand_dims(axis=0))
+        score_map = predict_kernels[0][-1, :, :]
+        score_map = mx.nd.where(score_map > 0.5, mx.nd.ones_like(score_map), mx.nd.zeros_like(score_map)) * 255
+        
         # post process
         start_time = time.time()
-        pred_map = pse_poster.pse(predict_kernels, 8)
+        
         # get result
-        boxes, kernels = detect(pred_map)
+        boxes, kernels = detect(predict_kernels[0].asnumpy(), w, h)
         # draw result on image and save result into txt
         
         if boxes is not None:
@@ -128,12 +133,14 @@ def inference(data_root, ckpt, out_dir='result', target_size=1024, no_write_imag
             boxes[:, :, 1] = np.clip(boxes[:, :, 1], 0, h)
 
         duration = time.time() - start_time
-        logger.info('[timing] {}'.format(duration))
+        logging.info('[timing] {}, objects {}'.format(duration, len(boxes)))
 
         # save to file
         if boxes is not None:
+            if not os.path.exists(out_dir):
+                os.mkdir(out_dir)
             res_filename = os.path.join(out_dir, ".".join(imname.split('.')[:-1])+'.txt')
-            with open(res_file, 'w') as f:
+            with open(res_filename, 'w') as f:
                 num =0
                 for i in xrange(len(boxes)):
                     # to avoid submitting errors
@@ -143,17 +150,17 @@ def inference(data_root, ckpt, out_dir='result', target_size=1024, no_write_imag
                     num += 1
                     f.write('{},{},{},{},{},{},{},{}\r\n'.format(
                         box[0, 0], box[0, 1], box[1, 0], box[1, 1], box[2, 0], box[2, 1], box[3, 0], box[3, 1]))
-                    cv2.polylines(im[:, :, ::-1], [box.astype(np.int32).reshape((-1, 1, 2))], True, color=(255, 255, 0), thickness=2)
+                    cv2.polylines(im, [box.astype(np.int32).reshape((-1, 1, 2))], True, color=(255, 255, 0), thickness=2)
         if not no_write_images:
             img_path = os.path.join(out_dir, os.path.basename(imname))
-            cv2.imwrite(img_path, im[:, :, ::-1])
+            cv2.imwrite(img_path, im)
 
 if __name__ == "__main__":
     data_root = sys.argv[1]
     ckpt = sys.argv[2]
     if len(sys.argv) < 2:
         print("python eval.py data_root ckpt")
-    inference(data_root, ckpt)
+    inference(data_root, ckpt, no_write_images=False)
 
 
 
