@@ -12,7 +12,6 @@ PSENet reproduce by Gluon
 
 #### Inference  
  
-
 ### Usage  
 
 #### Train  
@@ -22,6 +21,11 @@ python scripts/train.py $data_path $ckpt
 ``` 
 - `data_path`: path of dataset, which the prefix of image and annoation must be same, for example, a.jpg, a.txt  
 - `ckpt`: the filename of pretrained-mdel  
+
+##### Fix bug in loss, loss curve as follow:
+![img](images/WX20190509-160056@2x.png)
+![img](images/WX20190509-160108@2x.png)
+![img](images/WX20190509-160118@2x.png)
 
 #### Inference  
 ```
