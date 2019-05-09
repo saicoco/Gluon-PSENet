@@ -60,6 +60,6 @@ if __name__ == '__main__':
     fpn.initialize(ctx=mx.cpu())
     x = mx.nd.array([np.random.normal(size=(3, 512, 512))])
     fpn.hybridize()
-    print map(lambda x:x.shape, fpn(x))
+    print map(lambda x:x.min(), fpn(x))
 
 

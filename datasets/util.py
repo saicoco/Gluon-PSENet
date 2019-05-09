@@ -121,10 +121,10 @@ def parse_lines(filename):
         elif 7 > len(line) > 3:
             x0, y0, x1, y1 = list(map(float, line[:4]))
             text_polys.append([[x0, y0], [x1, y0], [x1, y1], [x0, y1]])
-        # elif len(line) > 10:
-        #     pts = list(map(float, line[:-1]))
-        #     pts = list(np.array(pts).reshape((-1, 2)))
-        #     text_polys.append(pts)
+        elif len(line) > 10:
+            pts = list(map(float, line[:-1]))
+            pts = list(np.array(pts).reshape((-1, 2)))
+            text_polys.append(pts)
         else:
             continue
         if label == '*' or label == '###':
