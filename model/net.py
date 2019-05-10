@@ -65,7 +65,7 @@ if __name__ == '__main__':
     import numpy as np
     fpn = PSENet(num_kernels=7, pretrained=True)
     fpn.initialize(ctx=mx.cpu())
-    x = mx.nd.array([np.random.uniform(-1, 1, size=(3, 512, 512))])
+    x = mx.nd.array([np.random.uniform(-2, 4.2, size=(3, 640, 640))])
     # fpn.hybridize()
     print map(lambda x:[x.min(), x.max()], fpn(x))
 

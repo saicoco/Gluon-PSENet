@@ -20,7 +20,7 @@ class ICDAR(Dataset):
         self.strides = strides
         self.debug = debug
         self.trans = transforms.Compose([
-            transforms.RandomColorJitter(brightness = 32.0 / 255, saturation = 0.5),
+            # transforms.RandomColorJitter(brightness = 32.0 / 255, saturation = 0.5),
             transforms.ToTensor(),
             transforms.Normalize([.485, .456, .406], [.229, .224, .225]),
         ])
@@ -71,7 +71,7 @@ if __name__ == '__main__':
         img, score, kernel, training_mask, ori_img = item
         img = img.asnumpy()
         kernels = kernel.asnumpy()
-        print img.shape, score
+        print img.shape, score, img.max(), img.min()
         if k==10:
             break
 

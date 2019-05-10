@@ -12,7 +12,7 @@ from mxnet import lr_scheduler as ls
 import os
 from tensorboardX import SummaryWriter
 
-def train(data_dir, pretrain_model, epoches=3, lr=0.001, batch_size=5, ctx=mx.cpu(), verbose_step=2, ckpt='ckpt'):
+def train(data_dir, pretrain_model, epoches=3, lr=0.001, wd=5e-4,  momentum=0.9, batch_size=5, ctx=mx.cpu(), verbose_step=2, ckpt='ckpt'):
 
     icdar_loader = ICDAR(data_dir=data_dir)
     loader = DataLoader(icdar_loader, batch_size=batch_size, shuffle=True)
@@ -24,7 +24,15 @@ def train(data_dir, pretrain_model, epoches=3, lr=0.001, batch_size=5, ctx=mx.cp
     pse_loss = DiceLoss(lam=0.7)
 
     cos_shc = ls.PolyScheduler(max_update=icdar_loader.length * epoches//batch_size, base_lr=lr)
-    trainer = Trainer(net.collect_params(), 'sgd', {'learning_rate': lr, 'lr_scheduler':cos_shc})
+    trainer = Trainer(
+        net.collect_params(), 
+        'sgd', 
+        {
+            'learning_rate': lr, 
+            'wd': wd,
+            'momentum': momentum, 
+            'lr_scheduler':cos_shc
+        })
     summary_writer = SummaryWriter(ckpt)
     for e in range(epoches):
         cumulative_loss = 0
