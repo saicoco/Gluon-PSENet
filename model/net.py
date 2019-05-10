@@ -8,20 +8,18 @@ from mxnet.gluon.contrib.nn import SyncBatchNorm
 
 class PSENet(HybridBlock):
 
-    def __init__(self, num_kernels, scale=1, ctx=mx.cpu(), pretrained=True, num_device=0, num_devices=0, **kwargs):
+    def __init__(self, num_kernels, scale=1, ctx=mx.cpu(), pretrained=True, num_device=0, **kwargs):
         super(PSENet, self).__init__()
         self.num_kernels = num_kernels
 
-        gluon_norm_kwargs = {'num_devices': num_devices} if num_devices >= 1 else {}
         base_network = resnet50_v1b(pretrained=pretrained, dilated=False, use_global_stats=False,
-                                    norm_layer=SyncBatchNorm, norm_kwargs=gluon_norm_kwargs, ctx=ctx, **kwargs)
-        sym_norm_kwargs = {'ndev': num_devices} if num_devices >= 1 else {}
+                                    norm_layer=nn.BatchNorm, ctx=ctx, **kwargs)
         self.features = FPNFeatureExpander(
             network=base_network,
             outputs=['layers1_relu8_fwd', 'layers2_relu11_fwd', 'layers3_relu17_fwd',
                     'layers4_relu8_fwd'], num_filters=[256, 256, 256, 256], use_1x1=True,
             use_upsample=True, use_elewadd=True, use_p6=False, no_bias=True, pretrained=pretrained,
-            norm_layer=mx.sym.contrib.SyncBatchNorm, norm_kwargs=sym_norm_kwargs, ctx=ctx)
+            ctx=ctx)
             
         self.scale = scale
         self.extrac_convs = []
@@ -67,7 +65,7 @@ if __name__ == '__main__':
     import numpy as np
     fpn = PSENet(num_kernels=7, pretrained=True)
     fpn.initialize(ctx=mx.cpu())
-    x = mx.nd.array([np.random.uniform(0, 1, size=(3, 512, 512))])
+    x = mx.nd.array([np.random.uniform(-1, 1, size=(3, 512, 512))])
     # fpn.hybridize()
     print map(lambda x:[x.min(), x.max()], fpn(x))
 
