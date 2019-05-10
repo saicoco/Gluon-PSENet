@@ -8,20 +8,20 @@ from mxnet.gluon.contrib.nn import SyncBatchNorm
 
 class PSENet(HybridBlock):
 
-    def __init__(self, num_kernels, scale=1, ctx=mx.cpu(), pretrained=True, num_device=0, **kwargs):
+    def __init__(self, num_kernels, scale=1, ctx=mx.cpu(), pretrained=True, num_device=0, num_devices=0, **kwargs):
         super(PSENet, self).__init__()
         self.num_kernels = num_kernels
 
         gluon_norm_kwargs = {'num_devices': num_devices} if num_devices >= 1 else {}
         base_network = resnet50_v1b(pretrained=pretrained, dilated=False, use_global_stats=False,
-                                    norm_layer=SyncBatchNorm, norm_kwargs=gluon_norm_kwargs, **kwargs)
+                                    norm_layer=SyncBatchNorm, norm_kwargs=gluon_norm_kwargs, ctx=ctx, **kwargs)
         sym_norm_kwargs = {'ndev': num_devices} if num_devices >= 1 else {}
-        features = FPNFeatureExpander(
+        self.features = FPNFeatureExpander(
             network=base_network,
             outputs=['layers1_relu8_fwd', 'layers2_relu11_fwd', 'layers3_relu17_fwd',
                     'layers4_relu8_fwd'], num_filters=[256, 256, 256, 256], use_1x1=True,
-            use_upsample=True, use_elewadd=True, use_p6=True, no_bias=True, pretrained=pretrained,
-            norm_layer=mx.sym.contrib.SyncBatchNorm, norm_kwargs=sym_norm_kwargs)
+            use_upsample=True, use_elewadd=True, use_p6=False, no_bias=True, pretrained=pretrained,
+            norm_layer=mx.sym.contrib.SyncBatchNorm, norm_kwargs=sym_norm_kwargs, ctx=ctx)
             
         self.scale = scale
         self.extrac_convs = []
@@ -59,7 +59,7 @@ class PSENet(HybridBlock):
         concat_output = F.concat(*concat_features, dim=1)
         output = self.decoder_out(concat_output)
         output = F.UpSampling(output, scale=self.scale, sample_type='nearest', name="final_upsampling")
-        print "output:{}, {}".format(output.max(), output.min())
+        print "output:{}, {}".format(output.max().asscalar(), output.min().asscalar())
         output = F.sigmoid(output)
         return output
 
