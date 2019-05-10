@@ -46,16 +46,16 @@ class ICDAR(Dataset):
 
         image, score_map, kernel_map, training_mask = imgs[0], imgs[1], imgs[2], imgs[3]
         if self.debug:
-            
-            im_show = np.where(np.concatenate([score_map[:, :, np.newaxis]]*3, axis=2)==1, image[:,:,::-1], np.zeros_like(image))
-            cv2.imshow('img', im_show)
+            im_show = np.concatenate([score_map, kernel_map[:, :, 0], kernel_map[:, :, 5]], axis=1)
+            cv2.imshow('img', image)
+            cv2.imshow('score_map', im_show)
             cv2.waitKey()
         image = mx.nd.array(image)
         score_map = mx.nd.array(score_map, dtype=np.float32)
         kernal_map = mx.nd.array(kernel_map, dtype=np.float32)
         training_mask = mx.nd.array(training_mask, dtype=np.float32)
-        image = self.trans(image)
-        return image, score_map, kernel_map, training_mask
+        trans_image = self.trans(image)
+        return trans_image, score_map, kernel_map, training_mask, transforms.ToTensor()(image)
 
     def __len__(self):
         return self.length
@@ -68,7 +68,7 @@ if __name__ == '__main__':
     icdar = ICDAR(data_dir=root_dir, debug=True)
     loader = dataloader.DataLoader(dataset=icdar, batch_size=1)
     for k, item in enumerate(loader):
-        img, score, kernel, training_mask = item
+        img, score, kernel, training_mask, ori_img = item
         img = img.asnumpy()
         kernels = kernel.asnumpy()
         print img.shape

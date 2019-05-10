@@ -83,7 +83,7 @@ def shrink_polys(img, polys, tags, mini_scale_ratio, num_kernels=6):
     f = lambda x: 1. - (1. - mini_scale_ratio)/(num_kernels - 1.) * x
     r = [f(i+1) for i in range(num_kernels)]
     training_mask = np.ones((h, w), dtype=np.float32)
-    kernel_maps = np.zeros((h, w, num_kernels), dtype=np.uint8)
+    kernel_maps = np.zeros((h, w, num_kernels), dtype=np.float32)
     score_map = np.zeros((h, w), dtype=np.float32)
     for poly, tag in zip(polys, tags):
         poly = np.array(poly, dtype=np.float32).reshape((-1, 2))
