@@ -41,7 +41,7 @@ class ICDAR(Dataset):
         # random_flip,random rotate, random crop
 
         imgs = random_horizontal_flip(imgs)
-        imgs = random_rotate(imgs)
+        # imgs = random_rotate(imgs)
         imgs = random_crop(imgs, self.input_size)
 
         image, score_map, kernel_map, training_mask = imgs[0], imgs[1], imgs[2], imgs[3]
@@ -71,7 +71,7 @@ if __name__ == '__main__':
         img, score, kernel, training_mask, ori_img = item
         img = img.asnumpy()
         kernels = kernel.asnumpy()
-        print img.shape
+        print img.shape, score
         if k==10:
             break
 

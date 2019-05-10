@@ -18,7 +18,7 @@ def train(data_dir, pretrain_model, epoches=3, lr=0.001, batch_size=5, ctx=mx.cp
     loader = DataLoader(icdar_loader, batch_size=batch_size, shuffle=True)
     net = PSENet(num_kernels=7, ctx=ctx)
     # initial params
-    net.collect_params().initialize(mx.init.Normal(sigma=0.1), ctx=ctx)
+    net.collect_params().initialize(mx.init.Normal(sigma=0.01), ctx=ctx)
     # net.initialize(ctx=ctx)
     # net.load_parameters(pretrain_model, ctx=ctx, allow_missing=True, ignore_extra=True)
     pse_loss = DiceLoss(lam=0.7)
@@ -39,6 +39,7 @@ def train(data_dir, pretrain_model, epoches=3, lr=0.001, batch_size=5, ctx=mx.cp
 
             with autograd.record():
                 kernels_pred = net(im)
+                
                 loss = pse_loss(score_maps, kernels, kernels_pred, training_masks)
                 loss.backward()
             trainer.step(batch_size)
@@ -51,12 +52,10 @@ def train(data_dir, pretrain_model, epoches=3, lr=0.001, batch_size=5, ctx=mx.cp
                 summary_writer.add_scalar('loss', mx.nd.mean(loss).asscalar(), global_steps)
                 summary_writer.add_scalar('c_loss', mx.nd.mean(pse_loss.C_loss).asscalar(), global_steps)
                 summary_writer.add_scalar('kernel_loss', mx.nd.mean(pse_loss.kernel_loss).asscalar(), global_steps)
-                summary_writer.add_scalars('IOU', {
-                    'score_map_iou': pse_loss.iou[0],
-                    'kernel_map_iou': pse_loss.iou[1]
-                }, global_steps)
-                print("step: {}, loss: {}, score_loss: {}, kernel_loss: {}, score_map_iou: {}".format(i * batch_size, mx.nd.mean(loss).asscalar(), \
-                    mx.nd.mean(pse_loss.C_loss).asscalar(), mx.nd.mean(pse_loss.kernel_loss).asscalar(), pse_loss.iou[0]))
+                summary_writer.add_scalar('pixel_accuracy', pse_loss.pixel_acc, global_steps)
+                print("step: {}, loss: {}, score_loss: {}, kernel_loss: {}, pixel_acc: {}".format(i * batch_size, mx.nd.mean(loss).asscalar(), \
+                    mx.nd.mean(pse_loss.C_loss).asscalar(), mx.nd.mean(pse_loss.kernel_loss).asscalar(), \
+                        pse_loss.pixel_acc))
             cumulative_loss += mx.nd.mean(loss).asscalar()
         print("Epoch {}, loss: {}".format(e, cumulative_loss))
         net.save_parameters(os.path.join(ckpt, 'model_{}.param'.format(e)))
