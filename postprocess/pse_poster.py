@@ -7,7 +7,6 @@ def pse(kernals, min_area):
     pred = np.zeros(kernals[0].shape, dtype='int32')
     
     label_num, label = cv2.connectedComponents(kernals[kernal_num - 1], connectivity=4)
-    
     for label_idx in range(1, label_num):
         if np.sum(label == label_idx) < min_area:
             label[label == label_idx] = 0

@@ -11,24 +11,26 @@ def batch_pix_accuracy(output, target):
     output = output.asnumpy().reshape((-1,))
     target = target.asnumpy().reshape((-1,))
     predict = np.where(output > 0.7, np.ones_like(output), np.zeros_like(output))
+    
     pixel_labeled = np.sum(target > 0)
     pixel_correct = np.sum((predict == target)*(target > 0))
     
     assert pixel_correct <= pixel_labeled, "Correct area should be smaller than Labeled"
-    acc = 1.0 * pixel_correct / pixel_labeled
+    acc = 1.0 * pixel_correct / (pixel_labeled + 1e-5)
     return acc
 
 
 
 class DiceLoss_with_OHEM(gluon.loss.Loss):
 
-    def __init__(self, lam=0.7, weight=None, batch_axis=0, debug=False, **kwargs):
+    def __init__(self, lam=0.7, weight=None, batch_axis=0, debug=False, num_kernels=7, **kwargs):
         super(DiceLoss_with_OHEM, self).__init__(weight=weight, batch_axis=batch_axis, **kwargs)
         self.lam = lam
         self.kernel_loss = 0.
         self.C_loss = 0.
         self.pixel_acc = None
         self.debug = debug
+        self.num_kernels = num_kernels
 
     def _ohem_single(self, score_gt, score_pred, training_masks):
         if self.debug:
@@ -69,31 +71,30 @@ class DiceLoss_with_OHEM(gluon.loss.Loss):
             selected_masks.append(selected_mask)
         selected_masks = F.concat(*selected_masks, dim=0)
 
-        s1, s2, s3, s4, s5, s6 = F.split(kernel_gt, num_outputs=6, axis=3, squeeze_axis=True)
-        s1_pred, s2_pred, s3_pred, s4_pred, s5_pred, s6_pred, C_pred = F.split(score_pred, num_outputs=7, axis=1, squeeze_axis=True)
+        kernel_maps = F.split(kernel_gt, num_outputs=self.num_kernels-1, axis=1, squeeze_axis=True)
+        kernel_maps_pred = F.split(score_pred, num_outputs=self.num_kernels, axis=1, squeeze_axis=True)
 
+        C_pred = kernel_maps_pred[self.num_kernels-1]
         self.pixel_acc = batch_pix_accuracy(C_pred, score_gt)
         # for text map
         eps = 1e-5
-        intersection = F.sum(score_gt * C_pred * selected_masks, axis=1)
-        union = F.sum(score_gt * selected_masks, axis=1) + F.sum(C_pred * selected_mask, axis=1) + eps
-        C_dice_loss = 1. - F.mean((2 * intersection / union))
-
+        intersection = F.sum(score_gt * C_pred * selected_masks, axis=(1, 2))
+        union = F.sum(score_gt * selected_masks, axis=(1, 2)) + F.sum(C_pred * selected_mask, axis=(1, 2)) + eps
+        C_dice_loss = 1. - (2 * intersection + 1e-5/ union)
         # loss for kernel
         kernel_dices = []
-        for s, s_pred in zip([s1, s2, s3, s4, s5, s6], [s1_pred, s2_pred, s3_pred, s4_pred, s5_pred, s6_pred]):
-            kernel_mask = F.where(C_pred > 0.5, F.ones_like(s_pred), F.zeros_like(s_pred))
+        for s, s_pred in zip(kernel_maps, kernel_maps_pred[:self.num_kernels-1]):
+            kernel_mask = F.where(C_pred * training_masks > 0.5, F.ones_like(s_pred), F.zeros_like(s_pred))
             kernel_mask = F.cast(kernel_mask, dtype='float32')
-            kernel_mask = F.cast(F.logical_or(kernel_mask, score_gt), dtype='float32')
+            # kernel_mask = F.cast(F.logical_or(kernel_mask, score_gt), dtype='float32')
             s = F.cast(s, dtype='float32')
-            kernel_intersection = F.sum(s * s_pred * training_masks * kernel_mask, axis=1)
-            kernel_union = F.sum(training_masks * s * kernel_mask, axis=1) + F.sum(
-                training_masks * s_pred * kernel_mask, axis=1) + eps
-            kernel_dice = 2. * kernel_intersection / kernel_union
-            kernel_dice = 1. - F.mean((2. * kernel_intersection / kernel_union))
+            kernel_intersection = F.sum(s * s_pred * training_masks * kernel_mask, axis=(1, 2))
+            kernel_union = F.sum(training_masks * s * s * kernel_mask, axis=(1, 2)) + F.sum(
+                training_masks * s_pred * s_pred * kernel_mask, axis=(1, 2)) + eps
+            
+            kernel_dice = 1. - (2. * kernel_intersection + 1e-5 / kernel_union)
             kernel_dices.append(kernel_dice)
-        kernel_dice_loss =F.mean(F.array(kernel_dices))
-
+        kernel_dice_loss = F.sum(F.stack(*kernel_dices, axis=1), axis=1)
         self.kernel_loss = kernel_dice_loss
         self.C_loss = C_dice_loss
 
@@ -104,35 +105,45 @@ class DiceLoss_with_OHEM(gluon.loss.Loss):
 
 class DiceLoss(gluon.loss.Loss):
 
-    def __init__(self, lam=0.7, weight=None, batch_axis=0, **kwargs):
+    def __init__(self, lam=0.7, weight=None, batch_axis=0, num_kernels=7, **kwargs):
         super(DiceLoss, self).__init__(weight=weight, batch_axis=batch_axis, **kwargs)
         self.lam = lam
         self.kernel_loss = 0.
         self.C_loss = 0.
         self.pixel_acc = None
+        self.kernel_acc = None
+        self.num_kernels = num_kernels
 
     def hybrid_forward(self, F, score_gt, kernel_gt, score_pred, training_masks, *args, **kwargs):
-        s1, s2, s3, s4, s5, s6 = F.split(kernel_gt, num_outputs=6, axis=3, squeeze_axis=True)
-        s1_pred, s2_pred, s3_pred, s4_pred, s5_pred, s6_pred, C_pred = F.split(score_pred, num_outputs=7, axis=1, squeeze_axis=True)
-        
+        kernel_maps = F.split(kernel_gt, num_outputs=self.num_kernels-1, axis=1, squeeze_axis=True)
+        kernel_maps_pred = F.split(score_pred, num_outputs=self.num_kernels, axis=1, squeeze_axis=True)
+
+        C_pred = kernel_maps_pred[self.num_kernels-1]
         self.pixel_acc = batch_pix_accuracy(C_pred, score_gt)
         # classification loss
         eps = 1e-5
-        intersection = F.sum(score_gt * C_pred * training_masks, axis=1)
-        union = F.sum(training_masks * score_gt, axis=1) + F.sum(training_masks * C_pred, axis=1) + eps
-        C_dice_loss = 1. - F.mean((2 * intersection / union))
+        intersection = F.sum(score_gt * C_pred * training_masks, axis=(1, 2))
+        union = F.sum(training_masks * score_gt) + F.sum(training_masks * C_pred, axis=(1, 2)) + eps
+        
+
+        # C_dice_loss = 1. - F.mean((2 * intersection / union))
+        C_dice_loss = 1. - (2 * intersection) / (union)
         # loss for kernel
         kernel_dices = []
-        for s, s_pred in zip([s1, s2, s3, s4, s5, s6], [s1_pred, s2_pred, s3_pred, s4_pred, s5_pred, s6_pred]):
+        kernel_acc = []
+        for s, s_pred in zip(kernel_maps, kernel_maps_pred[:self.num_kernels-1]):
             kernel_mask = F.where((C_pred * training_masks > 0.5), F.ones_like(C_pred), F.zeros_like(C_pred))
-            kernel_mask = F.cast(F.logical_or(kernel_mask, score_gt), dtype='float32')
-            
+            kernel_mask = F.cast(kernel_mask, dtype='float32')
             s = F.cast(s, dtype='float32')
-            kernel_intersection = F.sum(s * s_pred * kernel_mask, axis=1)
-            kernel_union = F.sum(s * kernel_mask, axis=1) + F.sum(s_pred * kernel_mask, axis=1) + eps
-            kernel_dice = 1. - F.mean((2. * kernel_intersection / kernel_union))
-            kernel_dices.append(kernel_dice.asscalar())
-        kernel_dice_loss = F.mean(F.array(kernel_dices))
+            tmp_acc = batch_pix_accuracy(s_pred*kernel_mask, s*kernel_mask)
+            kernel_acc.append(tmp_acc)
+
+            kernel_intersection = F.sum(s * s_pred * kernel_mask, axis=(1, 2))
+            kernel_union = F.sum(s * kernel_mask, axis=(1, 2)) + F.sum(s_pred *kernel_mask, axis=(1, 2)) + eps
+            kernel_dice = 1. - (2. * kernel_intersection)/ (kernel_union)
+            kernel_dices.append(kernel_dice)
+        kernel_dice_loss = F.sum(F.stack(*kernel_dices, axis=1), axis=1)
+        self.kernel_acc = np.mean(kernel_acc)
         # print("kernel_loss:", kernel_dice_loss)
         self.C_loss = C_dice_loss
         self.kernel_loss = kernel_dice_loss
@@ -146,14 +157,14 @@ if __name__ == '__main__':
     import numpy as np
     from mxnet import autograd
     np.random.seed(29999)
-    # loss = DiceLoss_with_OHEM(lam=0.7, debug=True)
-    loss = DiceLoss(lam=0.7)
+    loss = DiceLoss_with_OHEM(lam=0.7, debug=True)
+    # loss = DiceLoss(lam=0.7)
     for i in range(1):
-        score_gt = F.array(np.random.uniform(0, 1, size=(6, 128, 128)))
-        x = F.array(np.random.uniform(0, 1, size=(6, 128, 128, 6)))
+        score_gt = F.array(np.random.uniform(0, 1, size=(7, 128, 128)))
+        x = F.array(np.random.uniform(0, 1, size=(7, 6, 128, 128)))
         x.attach_grad()
-        x_pred = F.array(np.random.uniform(0, 1, size=(6, 7, 128, 128)))
-        mask = F.ones(shape=(6, 128, 128))
+        x_pred = F.array(np.random.uniform(0, 1, size=(7, 7, 128, 128)))
+        mask = F.ones(shape=(7, 128, 128))
         with autograd.record():
             tmp_loss = loss.forward(score_gt, x, x_pred, mask)
             # tmp_loss.backward()

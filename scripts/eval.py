@@ -53,7 +53,7 @@ References
 2. https://github.com/whai362/PSENet/issues/15
 
 """
-def detect(seg_maps, image_w, image_h, min_area_thresh=10, seg_map_thresh=0.1, ratio = 1):
+def detect(seg_maps, image_w, image_h, min_area_thresh=10, seg_map_thresh=0.5, ratio = 1):
     '''
     restore text boxes from score map and geo map
     :param seg_maps:
@@ -71,12 +71,20 @@ def detect(seg_maps, image_w, image_h, min_area_thresh=10, seg_map_thresh=0.1, r
     zero = np.zeros_like(seg_maps[-1], dtype=np.uint8)
     thresh = seg_map_thresh
     for i in range(seg_maps.shape[0]-1, -1, -1):
+        if i not in [1, 2, 6]:
+            continue
+        
         kernal = np.where(seg_maps[i]>thresh, one, zero)
+        # print("index:", i)
+        # cv2.imshow('mask_res', kernal * 255)
+        # cv2.waitKey()
+        # cv2.destroyAllWindows()
         kernals.append(kernal)
         thresh = seg_map_thresh*ratio
     mask_res = pse_poster.pse(kernals, min_area_thresh)
     
     mask_res = np.array(mask_res)
+    
     mask_res_resized = cv2.resize(mask_res, (image_w, image_h), interpolation=cv2.INTER_NEAREST)
     boxes = []
     
@@ -114,14 +122,17 @@ def inference(data_root, ckpt, out_dir='result', target_size=1024, no_write_imag
         im_res = trans(im_res)
         # prediction kernel and segmentation result
         predict_kernels = net(im_res.expand_dims(axis=0))
-        score_map = predict_kernels[0][-1, :, :]
+        score_map = predict_kernels[0][6, :, :]
         score_map = mx.nd.where(score_map > 0.5, mx.nd.ones_like(score_map), mx.nd.zeros_like(score_map)) * 255
-        
+        # cv2.imshow('score_map', score_map.asnumpy())
+        # cv2.waitKey()
+        # cv2.destroyAllWindows()
         # post process
         start_time = time.time()
         
         # get result
         boxes, kernels = detect(predict_kernels[0].asnumpy(), w, h)
+        
         # draw result on image and save result into txt
         
         if boxes is not None:
