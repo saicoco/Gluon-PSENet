@@ -31,6 +31,8 @@ class DiceLoss_with_OHEM(gluon.loss.Loss):
         self.pixel_acc = None
         self.debug = debug
         self.num_kernels = num_kernels
+        self.kernel_acc = None
+
 
     def _ohem_single(self, score_gt, score_pred, training_masks):
         if self.debug:
@@ -71,12 +73,12 @@ class DiceLoss_with_OHEM(gluon.loss.Loss):
             selected_masks.append(selected_mask)
         selected_masks = F.concat(*selected_masks, dim=0)
 
-        C_pred = score_pred[:, self.num_kernels-1, :, :]
+        C_pred = score_pred[:, 0, :, :]
         self.pixel_acc = batch_pix_accuracy(C_pred, score_gt)
         # classification loss
         eps = 1e-5
         intersection = F.sum(score_gt * C_pred * selected_masks, axis=(1, 2))
-        union = F.sum(selected_masks * score_gt, axis=(1, 2)) + F.sum(selected_masks * C_pred, axis=(1, 2)) + eps
+        union = F.sum(selected_masks * score_gt * score_gt, axis=(1, 2)) + F.sum(selected_masks * C_pred * C_pred, axis=(1, 2)) + eps
         
         C_dice_loss = 1. - (2 * intersection) / (union)
 
@@ -84,9 +86,9 @@ class DiceLoss_with_OHEM(gluon.loss.Loss):
         kernel_mask = F.where(training_masks * C_pred > 0.5, F.ones_like(C_pred), F.zeros_like(C_pred))
         kernel_mask = F.expand_dims(kernel_mask, axis=1)
         kernel_mask = F.repeat(kernel_mask, repeats=self.num_kernels-1, axis=1)
-        self.kernel_acc = batch_pix_accuracy(score_pred[:, 0, :, :] * score_gt, kernel_gt[:, 0, :, :])
-        kernel_intersection = F.sum(kernel_gt * score_pred[:, :self.num_kernels-1, :, :] * kernel_mask, axis=(2, 3))
-        kernel_union = F.sum(kernel_gt * kernel_mask, axis=(2, 3)) + F.sum(score_pred[:, :self.num_kernels-1, :, :] * kernel_mask, axis=(2, 3)) + eps
+        self.kernel_acc = batch_pix_accuracy(score_pred[:, 1, :, :] * score_gt, kernel_gt[:, 0, :, :])
+        kernel_intersection = F.sum(kernel_gt * score_pred[:, 1:, :, :] * kernel_mask, axis=(2, 3))
+        kernel_union = F.sum(kernel_gt * kernel_gt * kernel_mask, axis=(2, 3)) + F.sum(score_pred[:, 1:, :, :] * score_pred[:, 1:, :, :] * kernel_mask, axis=(2, 3)) + eps
         kernel_dice = 1. - (2 * kernel_intersection) / kernel_union
     
         kernel_dice_loss = F.mean(kernel_dice, axis=1)
@@ -109,12 +111,15 @@ class DiceLoss(gluon.loss.Loss):
         self.num_kernels = num_kernels
 
     def hybrid_forward(self, F, score_gt, kernel_gt, score_pred, training_masks, *args, **kwargs):
-        C_pred = score_pred[:, self.num_kernels-1, :, :]
+        """
+        kernels map's order: [1, ..., 0.5]
+        """
+        C_pred = score_pred[:, 0, :, :]
         self.pixel_acc = batch_pix_accuracy(C_pred, score_gt)
         # classification loss
         eps = 1e-5
         intersection = F.sum(score_gt * C_pred * training_masks, axis=(1, 2))
-        union = F.sum(training_masks * score_gt, axis=(1, 2)) + F.sum(training_masks * C_pred, axis=(1, 2)) + eps
+        union = F.sum(training_masks * score_gt * score_gt, axis=(1, 2)) + F.sum(training_masks * C_pred * C_pred, axis=(1, 2)) + eps
         
         C_dice_loss = 1. - (2 * intersection) / (union)
 
@@ -123,8 +128,8 @@ class DiceLoss(gluon.loss.Loss):
         kernel_mask = F.expand_dims(kernel_mask, axis=1)
         kernel_mask = F.repeat(kernel_mask, repeats=self.num_kernels-1, axis=1)
         self.kernel_acc = batch_pix_accuracy(score_pred[:, 0, :, :] * score_gt, kernel_gt[:, 0, :, :])
-        kernel_intersection = F.sum(kernel_gt * score_pred[:, :self.num_kernels-1, :, :] * kernel_mask, axis=(2, 3))
-        kernel_union = F.sum(kernel_gt * kernel_mask, axis=(2, 3)) + F.sum(score_pred[:, :self.num_kernels-1, :, :] * kernel_mask, axis=(2, 3)) + eps
+        kernel_intersection = F.sum(kernel_gt * score_pred[:, 1:, :, :] * kernel_mask, axis=(2, 3))
+        kernel_union = F.sum(kernel_gt * kernel_gt * kernel_mask, axis=(2, 3)) + F.sum(score_pred[:, 1:, :, :] * score_pred[:, 1:, :, :] * kernel_mask, axis=(2, 3)) + eps
         kernel_dice = 1. - (2 * kernel_intersection) / kernel_union
     
         kernel_dice_loss = F.mean(kernel_dice, axis=1)
@@ -141,8 +146,8 @@ if __name__ == '__main__':
     import numpy as np
     from mxnet import autograd
     np.random.seed(29999)
-    loss = DiceLoss_with_OHEM(lam=0.7, debug=True, num_kernels=7)
-    # loss = DiceLoss(lam=0.7, num_kernels=7)
+    # loss = DiceLoss_with_OHEM(lam=0.7, debug=True, num_kernels=7)
+    loss = DiceLoss(lam=0.7, num_kernels=7)
     for i in range(1):
         score_gt = F.array(np.random.uniform(0, 1, size=(7, 128, 128)))
         x = F.array(np.random.uniform(0, 1, size=(7, 6, 128, 128)))

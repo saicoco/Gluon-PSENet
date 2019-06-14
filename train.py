@@ -26,7 +26,8 @@ def train(data_dir, pretrain_model, epoches=50, lr=0.001, wd=5e-4,  momentum=0.9
     net.load_parameters(pretrain_model, ctx=ctx, allow_missing=True, ignore_extra=True)
     # net.initialize(ctx=ctx)
     
-    pse_loss = DiceLoss(lam=0.7, num_kernels=num_kernels)
+    # pse_loss = DiceLoss(lam=0.7, num_kernels=num_kernels)
+    pse_loss = DiceLoss_with_OHEM(lam=0.7, num_kernels=num_kernels)
 
     cos_shc = ls.PolyScheduler(max_update=icdar_loader.length * epoches//batch_size, base_lr=lr)
     trainer = Trainer(
