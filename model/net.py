@@ -8,7 +8,7 @@ from mxnet.gluon.contrib.nn import SyncBatchNorm
 
 class PSENet(HybridBlock):
 
-    def __init__(self, num_kernels, scale=1, ctx=mx.cpu(), pretrained=True, num_device=0, **kwargs):
+    def __init__(self, num_kernels, scale=1, ctx=mx.cpu(), pretrained=False, num_device=0, **kwargs):
         super(PSENet, self).__init__()
         self.num_kernels = num_kernels
 
@@ -57,7 +57,6 @@ class PSENet(HybridBlock):
         concat_output = F.concat(*concat_features, dim=1)
         output = self.decoder_out(concat_output)
         output = F.UpSampling(output, scale=self.scale, sample_type='nearest', name="final_upsampling")
-        print "output:{}, {}".format(output.max().asscalar(), output.min().asscalar())
         output = F.sigmoid(output)
         return output
 

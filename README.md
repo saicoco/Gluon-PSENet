@@ -1,31 +1,49 @@
 # Shape Robust Text Detection with Progressive Scale Expansion Network
+A reimplement of PSENet with mxnet-gluon. Just train on ICPR.
+
+- *Support TensorboardX*
+- *Support hybridize to depoly*
+
+Thanks for the author's (@whai362) great work!
 
 ## Requirements
 
 - Python 2.7
-
 - mxnet1.4.0
-
 - pyclipper
-
 - Polygon2
-
-- OpenCV 3+ (for c++ version pse)
+- OpenCV 4+ (for c++ version pse)
 - TensorboardX
 
 ## Introduction
 
-Progressive Scale Expansion Network (PSENet) is a text detector which is able to well detect the arbitrary-shape text in natural scene.
+To reimplement PSENet by Gluon, here are some problem that I occur.
 
+#### Diceloss about kernels isn't convergence.
+
+- First, I doubt the label about kernel is not correct. However, I verify them again so that they are absolute right.
+- Second, I doubt the `mx.nd.split` cannot be backward. But the score map from results of `split`. So it cannot be raise this problem
+- Here the network is based on resnet50, and the output of FPN is *input_size/4*,so there may not be any text instance in min_kernel_map. So I set the number of kernels to *3*
+
+Maybe upsampling output to input_size is a good choice. I will try it in my spare time.
 
 
 ## Usage  
 
-### Pretrained-models
+#### Pretrained-models
 
 - [gluoncv_model_zoo](https://gluon-cv.mxnet.io/model_zoo/classification.html):**resnet50_v1b**, you can replace it with others，the default path of pretrained-model in `~/.mxnet/`
 
-### Train  
+Also you can download maskrcnn_coco from `gluoncv_model_zoo` to get a warm start.
+
+#### Make
+```
+cd pse
+make
+```
+Here I add `-Wl,-undefined,dynamic_lookup` to avoid some compile error, which is different from original PSENet.
+
+#### Train  
 
 ```
 python scripts/train.py $data_path $ckpt
@@ -33,20 +51,28 @@ python scripts/train.py $data_path $ckpt
 - `data_path`: path of dataset, which the prefix of image and annoation must be same, for example, a.jpg, a.txt  
 - `ckpt`: the filename of pretrained-mdel  
 
-#### loss curve as follow:
+#### Loss curve:
 
-| ![img](images/WX20190509-160056@2x.png) | ![img](images/WX20190509-160108@2x.png) | ![img](images/WX20190509-160118@2x.png) |
-| :-------------------------------------: | :-------------------------------------: | :-------------------------------------: |
-|                Text loss                |               Kernel loss               |                All_loss                 |
+| ![image-20190614182216647](images/image-20190614182216647.png) | ![image-20190614182249280](images/image-20190614182249280.png) | ![image-20190614182313296](images/image-20190614182313296.png) | ![image-20190614182326647](images/image-20190614182326647.png) |
+| :----------------------------------------------------------: | :----------------------------------------------------------: | :----------------------------------------------------------: | :----------------------------------------------------------: |
+|                          Text loss                           |                         Kernel loss                          |                           All_loss                           |                        Pixel_accuracy                        |
 
-### Inference  
+#### Some Results
+
+![fusion_TB1vcxDLXXXXXb1XFXXunYpLFXX](images/fusion_TB1vcxDLXXXXXb1XFXXunYpLFXX.png)
+
+#### Inference  
 
 ```
-python scripts/eval.py $data_path $ckpt
+python eval.py $data_path $ckpt $output_dir $gpu_or_cpu
 ```
-Now the poster is in python version, I will add c++ poster into this repo
 
 
+
+#### TODO:
+
+- Upsamping to input_size
+- Train on ICDAR and evaluate 
 
 ### References  
 
