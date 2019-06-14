@@ -48,11 +48,6 @@ Now the poster is in python version, I will add c++ poster into this repo
 
 
 
-### TODO
-
-- [ ] Evaluation
-- [ ] Integrate C++ into Repo
-
 ### References  
 
 - [issue 15](https://github.com/whai362/PSENet/issues/15), 

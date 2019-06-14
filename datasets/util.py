@@ -215,6 +215,7 @@ def process_data(image, bboxes, label, num_kernels=6):
     f = lambda x: 1. - (1. - 0.5)/(num_kernels) * x
     rates = [f(i+1) for i in range(num_kernels)]
     
+    # from large kernel to small kernel
     for rate in rates:
         gt_kernal = np.zeros(img.shape[0:2], dtype='uint8')
         kernal_bboxes = shrink(bboxes, rate)

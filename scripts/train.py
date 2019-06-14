@@ -5,14 +5,14 @@ from mxnet.gluon.data import DataLoader
 from model.net import PSENet
 import mxnet as mx
 from mxnet.gluon import Trainer
-from model.loss import DiceLoss
+from model.loss import DiceLoss, DiceLoss_with_OHEM
 from mxnet import autograd
 
 from mxnet import lr_scheduler as ls
 import os
 from tensorboardX import SummaryWriter
 
-def train(data_dir, pretrain_model, epoches=3, lr=0.001, wd=5e-4,  momentum=0.9, batch_size=5, ctx=mx.cpu(), verbose_step=1, ckpt='ckpt'):
+def train(data_dir, pretrain_model, epoches=50, lr=0.001, wd=5e-4,  momentum=0.9, batch_size=5, ctx=mx.cpu(), verbose_step=1, ckpt='ckpt'):
     num_kernels = 3
     icdar_loader = ICDAR(data_dir=data_dir, num_kernels=num_kernels-1)
     loader = DataLoader(icdar_loader, batch_size=batch_size, shuffle=True)
@@ -59,8 +59,8 @@ def train(data_dir, pretrain_model, epoches=3, lr=0.001, wd=5e-4,  momentum=0.9,
                 global_steps = icdar_loader.length * e + i * batch_size
                 summary_writer.add_image('score_map', score_maps[0:1, :, :], global_steps)
                 summary_writer.add_image('score_map_pred', kernels_pred[0:1, -1, :, :], global_steps)
-                summary_writer.add_image('kernel_map', kernels[0:1, 0, :, :]*255, global_steps)
-                summary_writer.add_image('kernel_map_pred', kernels_pred[0:1, 0, :, :]*255, global_steps)
+                summary_writer.add_image('kernel_map', kernels[0:1, 0, :, :], global_steps)
+                summary_writer.add_image('kernel_map_pred', kernels_pred[0:1, 0, :, :], global_steps)
                 summary_writer.add_scalar('loss', mx.nd.mean(loss).asscalar(), global_steps)
                 summary_writer.add_scalar('c_loss', mx.nd.mean(pse_loss.C_loss).asscalar(), global_steps)
                 summary_writer.add_scalar('kernel_loss', mx.nd.mean(pse_loss.kernel_loss).asscalar(), global_steps)

@@ -63,10 +63,24 @@ class PSENet(HybridBlock):
 
 if __name__ == '__main__':
     import numpy as np
+    import matplotlib.pyplot as plt
     fpn = PSENet(num_kernels=7, pretrained=True)
     fpn.initialize(ctx=mx.cpu())
     x = mx.nd.array([np.random.uniform(-2, 4.2, size=(3, 640, 640))])
+    x = fpn(x)
     # fpn.hybridize()
-    print map(lambda x:[x.min(), x.max()], fpn(x))
+    # x = x.asnumpy()
+    # print x.shape
+    score_map = x[0, 6, :, :].asnumpy()
+    kernel_map = x[0, 0, :, :].asnumpy()
+    
+    plt.imshow(score_map)
+    plt.show()
+
+    plt.imshow(kernel_map)
+    plt.show()
+    
+
+    
 
 

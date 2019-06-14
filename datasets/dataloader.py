@@ -47,7 +47,7 @@ class ICDAR(Dataset):
         kernal_map = mx.nd.array(kernel_map, dtype=np.float32)
         training_mask = mx.nd.array(training_mask, dtype=np.float32)
         trans_image = self.trans(image)
-        return trans_image, score_map, kernel_map, training_mask, transforms.ToTensor()(image)
+        return trans_image, score_map, kernal_map, training_mask, transforms.ToTensor()(image)
 
     def __len__(self):
         return self.length
