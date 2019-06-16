@@ -75,10 +75,9 @@ def detect_pse(seg_maps, threshold=0.5, threshold_k=0.55, boxes_thres=0.01):
     """
     seg_maps = seg_maps[0, :, :, :]
     image_size = seg_maps.shape[2:]
-    mask = np.where(seg_maps[-1:, :, :] > threshold, 1., 0.)
+    mask = np.where(seg_maps[0, :, :] > threshold, 1., 0.)
     seg_maps = (seg_maps * mask > threshold_k)
-    # resort
-    seg_maps = np.concatenate([seg_maps[-1:, :, :], seg_maps[:-1, :, :]], axis=0)
+    
     result_map = pse(seg_maps, 5)
     bboxes, scores = mask_to_boxes_pse(result_map, seg_maps[0, :, :], min_score=boxes_thres)
     return bboxes, scores

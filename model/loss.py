@@ -127,7 +127,7 @@ class DiceLoss(gluon.loss.Loss):
         kernel_mask = F.where(training_masks * C_pred > 0.5, F.ones_like(C_pred), F.zeros_like(C_pred))
         kernel_mask = F.expand_dims(kernel_mask, axis=1)
         kernel_mask = F.repeat(kernel_mask, repeats=self.num_kernels-1, axis=1)
-        self.kernel_acc = batch_pix_accuracy(score_pred[:, 0, :, :] * score_gt, kernel_gt[:, 0, :, :])
+        self.kernel_acc = batch_pix_accuracy(score_pred[:, 1, :, :] * score_gt, kernel_gt[:, 0, :, :])
         kernel_intersection = F.sum(kernel_gt * score_pred[:, 1:, :, :] * kernel_mask, axis=(2, 3))
         kernel_union = F.sum(kernel_gt * kernel_gt * kernel_mask, axis=(2, 3)) + F.sum(score_pred[:, 1:, :, :] * score_pred[:, 1:, :, :] * kernel_mask, axis=(2, 3)) + eps
         kernel_dice = 1. - (2 * kernel_intersection) / kernel_union

@@ -56,7 +56,8 @@ class PSENet(HybridBlock):
             concat_features.append(up_C)
         concat_output = F.concat(*concat_features, dim=1)
         output = self.decoder_out(concat_output)
-        output = F.UpSampling(output, scale=self.scale, sample_type='nearest', name="final_upsampling")
+        if self.scale > 1.0:
+            output = F.UpSampling(output, scale=self.scale, sample_type='nearest', name="final_upsampling")
         output = F.sigmoid(output)
         return output
 
