@@ -59,7 +59,8 @@ python scripts/train.py $data_path $ckpt
 
 #### Some Results
 
-![fusion_TB1vcxDLXXXXXb1XFXXunYpLFXX](images/fusion_TB1LvBSLXXXXXbDXXXXunYpLFXX.jpg)
+![fusion_TB1vcxDLXXXXXb1XFXXunYpLFXX](images/fusion_tv_5afd3f6bN1412d650.jpg)
+![](images/fusion_26602698555_e7f22de7948a4e74_3.jpg)
 
 #### Inference  
 
