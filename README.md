@@ -3,17 +3,25 @@ A reimplement of PSENet with mxnet-gluon. Just train on ICPR.
 
 - *Support TensorboardX*
 - *Support hybridize to depoly*
+- *Fast, 45ms/per_image when we resize max_side to 784*
 
 Thanks for the author's (@whai362) great work!
 
 ## Requirements
 
 - Python 2.7
+
 - mxnet1.4.0
+
 - pyclipper
+
 - Polygon2
+
 - OpenCV 4+ (for c++ version pse)
+
 - TensorboardX
+
+  
 
 ## Introduction
 
@@ -22,10 +30,20 @@ To reimplement PSENet by Gluon, here are some problem that I occur.
 #### Diceloss about kernels isn't convergence.
 
 - First, I doubt the label about kernel is not correct. However, I verify them again so that they are absolute right.
-- Second, I doubt the `mx.nd.split` cannot be backward. But the score map from results of `split`. So it cannot be raise this problem
+- Second, I doubt the `mx.nd.split` cannot be backwarded. However the diceloss about score map by  `split` is well. So it cannot be raise this problem.
 - Here the network is based on resnet50, and the output of FPN is *input_size/4*,so there may not be any text instance in min_kernel_map. So I set the number of kernels to *3*
 
 Maybe upsampling output to input_size is a good choice. I will try it in my spare time.
+
+
+
+#### Evaluation
+
+| Dataset            | Recall | Precision | F1-score | Speed          |
+| ------------------ | ------ | --------- | -------- | -------------- |
+| ICPR(max_side=784) | 0.56   | 0.67      | 0.61     | **45**ms/image |
+
+
 
 
 ## Usage  
@@ -67,8 +85,6 @@ python scripts/train.py $data_path $ckpt
 ```
 python eval.py $data_path $ckpt $output_dir $gpu_or_cpu
 ```
-
-
 
 #### TODO:
 
